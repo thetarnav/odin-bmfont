@@ -2,12 +2,10 @@ package bmfont
 
 Vec2  :: [2]f32
 Rect  :: struct {using pos: Vec2, size: Vec2}
-Color :: [4]u8
 
 Draw_Callback :: proc (
 	src:   Rect,  // Source rectangle in atlas pixel space.
 	dst:   Rect,  // Destination rectangle in screen/world pixel space.
-	color: Color, // Tint to apply multiplicatively (so {255,255,255,255} means no tinting).
 )
 
 // Draw a string of text starting at the renderer's current cursor. Advances the cursor past
@@ -25,7 +23,6 @@ draw_text :: proc(
 	text:   string,
 	font:   Font,
 	cb:     Draw_Callback,
-	color:  Color  = {255, 255, 255, 255},
 	scale:  f32    = 1,
 	origin: Vec2   = {0, 0},
 	cursor: ^Vec2  = nil,
@@ -79,8 +76,7 @@ draw_text :: proc(
 		dh := sh * scale
 
 		cb(src   = {{sx, sy}, {sw, sh}},
-		   dst   = {{dx, dy}, {dw, dh}},
-		   color = color)
+		   dst   = {{dx, dy}, {dw, dh}})
 
 		pen_x += f32(glyph.advance) * scale
 		max_x = max(max_x, origin.x + pen_x)
