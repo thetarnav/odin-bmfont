@@ -33,7 +33,7 @@ main :: proc () {
 
 		// The cursor auto-advances on every draw; each block just sets the y and
 		// calls draw_line / draw_paragraph without computing offsets by hand.
-		cursor := Text_Cursor{ pos = {10, 8} }
+		cursor := Text_Cursor{pos = {10, 8}}
 
 		draw_line(font_thick, "BITMAP FONTS!", 12, {255, 220, 160, 255}, &cursor)
 		cursor.pos.y += 2
@@ -41,16 +41,18 @@ main :: proc () {
 		draw_line(font_minogram, "All four BMFonts, one example", 12, {200, 255, 220, 255}, &cursor)
 		cursor.pos.y += 2
 
+		max_width := f32(k2.get_screen_width()) / PIXEL_SCALE - 20
+
 		draw_paragraph(
 			font_square,
 			"The quick brown fox jumps over the lazy dog. " +
-				"0123456789 !@#$%^&*() This paragraph is laid out by draw_paragraph, " +
-				"which uses k2.measure_text to wrap each line at the available width.",
-			9, 200, {200, 230, 255, 255}, &cursor,
+			"0123456789 !@#$%&*() This paragraph is laid out by draw-paragraph, " +
+			"which uses k2.measure-text to wrap each line at the available width.",
+			9, max_width, {200, 230, 255, 255}, &cursor,
 		)
 		cursor.pos.y += 2
 
-		draw_line(font_round, "= round_6x6 =", 9, {255, 200, 200, 255}, &cursor)
+		draw_line(font_round, "= round-6x6 =", 9, {255, 200, 200, 255}, &cursor)
 
 		k2.present()
 	}

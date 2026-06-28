@@ -54,7 +54,6 @@ draw_paragraph :: proc(
 	lh      := line_height(font, font_size)
 
 	current := make([dynamic]u8, context.temp_allocator)
-	defer delete(current)
 	line_w: f32 = 0
 
 	i, n := 0, len(text)
