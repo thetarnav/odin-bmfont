@@ -3,17 +3,24 @@ package example
 import k2 "./karl2d"
 import bmfont ".."
 
-UI_W, UI_H :: 320, 200
+Vec2  :: bmfont.Vec2
+Rect  :: bmfont.Rect
+Color :: bmfont.Color
+
+UI_W, UI_H  :: 320, 200
 PIXEL_SCALE :: 4
+
+COLOR_BIG   :: Color{255, 240, 200, 255}
+COLOR_SMALL :: Color{200, 230, 255, 255}
 
 // Karl2D draw callback. The user_data carries a ^k2.Texture; the bmfont `texture` argument is
 // unused here so we leave it nil when constructing the renderer.
-k2_draw_cb :: proc(texture: rawptr, call: bmfont.Draw_Call, user_data: rawptr) {
+draw_cb: bmfont.Draw_Callback : proc (src: Rect, dst: Rect, color: Color) {
 	k2.draw_texture_fit(
-		(^k2.Texture)(user_data)^,
-		{**call.src.pos, **call.src.size},
-		{**call.dst.pos, **call.dst.size},
-		tint = {call.color.r, call.color.g, call.color.b, call.color.a},
+		(^k2.Texture)(context.user_ptr)^,
+		{**src.pos, **src.size},
+		{**dst.pos, **dst.size},
+		tint = color,
 	)
 }
 
@@ -28,20 +35,6 @@ main :: proc () {
 	tex_big       := k2.load_texture_from_bytes(#load("../fonts/minogram_6x10.png"))
 	tex_small     := k2.load_texture_from_bytes(#load("../fonts/square_6x6.png"))
 
-	ren_big:   bmfont.Renderer
-	ren_small: bmfont.Renderer
-
-	bmfont.renderer_init(
-		&ren_big, font_big, nil, k2_draw_cb, &tex_big,
-		color = {255, 240, 200, 255},
-		scale = f32(PIXEL_SCALE),
-	)
-	bmfont.renderer_init(
-		&ren_small, font_small, nil, k2_draw_cb, &tex_small,
-		color = {200, 230, 255, 255},
-		scale = f32(PIXEL_SCALE),
-	)
-
 	for {
 		k2.update() or_break
 		defer k2.reset_frame_allocator()
@@ -49,17 +42,15 @@ main :: proc () {
 
 		k2.clear({30, 30, 40, 255})
 
-		bmfont.renderer_set_pos(&ren_big, 10, 10)
-		bmfont.draw_text(&ren_big, "Bitmap Fonts!")
+		context.user_ptr = &tex_big
+		bmfont.draw_text("Bitmap Fonts!", font_big, draw_cb, color=COLOR_BIG, scale=PIXEL_SCALE, origin={10, 10})
 
-		bmfont.renderer_set_pos(&ren_small, 10, 80)
-		bmfont.draw_text(&ren_small, "The quick brown fox jumps over 12345")
+		context.user_ptr = &tex_small
+		bmfont.draw_text("The quick brown fox jumps over 12345", font_small, draw_cb, color=COLOR_SMALL, scale=PIXEL_SCALE, origin={10, 80})
 
-		bmfont.renderer_set_pos(&ren_small, 10, 120)
-		bmfont.draw_text(&ren_small, "ABCDEF abcdef 0123456789")
+		bmfont.draw_text("ABCDEF abcdef 0123456789", font_small, draw_cb, color=COLOR_SMALL, scale=PIXEL_SCALE, origin={10, 120})
 
-		bmfont.renderer_set_pos(&ren_small, 10, 160)
-		bmfont.draw_text(&ren_small, "Multi-line\nis supported!")
+		bmfont.draw_text("Multi-line\nis supported!", font_small, draw_cb, color=COLOR_SMALL, scale=PIXEL_SCALE, origin={10, 160})
 
 		k2.present()
 	}

@@ -4,128 +4,67 @@ Vec2  :: [2]f32
 Rect  :: struct {using pos: Vec2, size: Vec2}
 Color :: [4]u8
 
-// A single draw operation the renderer wants to issue. The user's draw callback receives one
-// of these for every glyph.
-Draw_Call :: struct {
+Draw_Callback :: proc (
 	src:   Rect,  // Source rectangle in atlas pixel space.
 	dst:   Rect,  // Destination rectangle in screen/world pixel space.
 	color: Color, // Tint to apply multiplicatively (so {255,255,255,255} means no tinting).
-}
-
-// Callback the user provides to forward a draw call to their backend.
-//
-// `texture` is the opaque handle the user passed to `renderer_init` (e.g. a karl2d texture,
-// or anything else cast to `rawptr`). It is forwarded verbatim on every call.
-//
-// `user_data` is whatever the user passed to `renderer_init` for additional context. Use it
-// to carry backend-specific state (the actual texture struct, transforms, etc.).
-Draw_Callback :: proc (texture: rawptr, call: Draw_Call, user_data: rawptr)
-
-// A generic, backend-agnostic renderer for a parsed BMFont.
-//
-// Holds a font, an opaque texture handle, an RGBA tint, a scale, and a draw callback.
-// `draw_text` walks the string, looks up each glyph, and emits a draw call via the callback.
-// The renderer never references any specific backend — it only produces (src, dst, color)
-// tuples, leaving the actual GPU call up to the user.
-//
-// All positions and sizes are in screen/world pixels. The font atlas is in source pixels;
-// the renderer multiplies atlas coordinates by `scale` (default 1) to produce screen pixels.
-Renderer :: struct {
-	font:      Font,
-	texture:   rawptr,
-	color:     Color,
-	scale:     f32,
-	origin:    Vec2, // top-left anchor in screen pixels
-	cursor:    Vec2, // current pen position, relative to origin, in screen pixels
-	cb:        Draw_Callback,
-	user_data: rawptr,
-}
-
-// Initialize a renderer. Returns the same pointer for chaining.
-//
-// `texture` is an opaque handle to the font's atlas texture. The renderer doesn't manage its
-// lifetime; the caller is responsible for loading and destroying it.
-//
-// `cb` is invoked once per glyph to draw. The user forwards it to their backend of choice.
-//
-// `scale` controls how large each atlas pixel appears on screen. Use 4 to render a 6px font
-// at chunky 4x pixel-art size, or 1 for a 1:1 crisp look.
-renderer_init :: proc(
-	r:         ^Renderer,
-	font:      Font,
-	texture:   rawptr,
-	cb:        Draw_Callback,
-	user_data: rawptr = nil,
-	color:     Color  = {255, 255, 255, 255},
-	scale:     f32    = 1,
-) -> ^Renderer {
-	r.font      = font
-	r.texture   = texture
-	r.color     = color
-	r.scale     = scale
-	r.origin    = {0, 0}
-	r.cursor    = {0, 0}
-	r.cb        = cb
-	r.user_data = user_data
-	return r
-}
-
-// Move the pen to an absolute screen position. The next `draw_text` call starts drawing from
-// here, with the cursor's x-component reset to zero relative to the new origin.
-renderer_set_pos :: proc(r: ^Renderer, x, y: f32) {
-	r.origin = {x, y}
-	r.cursor = {0, 0}
-}
-
-// Set the renderer's color (tint). Each glyph is multiplied by this color when drawn.
-renderer_set_color :: proc(r: ^Renderer, color: Color) {
-	r.color = color
-}
-
-// Set the renderer's scale (multiplier from atlas pixels to screen pixels).
-renderer_set_scale :: proc(r: ^Renderer, scale: f32) {
-	r.scale = scale
-}
+)
 
 // Draw a string of text starting at the renderer's current cursor. Advances the cursor past
 // the drawn text. Supports '\n' for newlines (resets cursor.x to origin.x, advances y) and
 // '\t' for tabs. Unknown codepoints advance the cursor by the width of a space glyph.
 //
+// `scale`  - controls how large each atlas pixel appears on screen.
+//            Use 4 to render a 6px font at chunky 4x pixel-art size, or 1 for a 1:1 crisp look.
+// `origin` - top-left anchor in screen pixels
+// `cursor` - current pen position, relative to origin, in screen pixels
+//
 // Returns the bounding rectangle of the drawn text in screen pixels, including the origin.
 // Useful for hit-testing or positioning subsequent text.
-draw_text :: proc(r: ^Renderer, text: string) -> Rect {
-	if r.cb == nil || len(r.font.glyphs) == 0 {
-		return {r.origin + r.cursor, 0}
+draw_text :: proc(
+	text:   string,
+	font:   Font,
+	cb:     Draw_Callback,
+	color:  Color  = {255, 255, 255, 255},
+	scale:  f32    = 1,
+	origin: Vec2   = {0, 0},
+	cursor: ^Vec2  = nil,
+) -> Rect {
+
+	c: Vec2 = cursor^ if cursor != nil else 0
+
+	if cb == nil || len(font.glyphs) == 0 {
+		return {origin + c, 0}
 	}
 
-	pen_x := r.cursor.x
-	pen_y := r.cursor.y
+	pen_x := c.x
+	pen_y := c.y
 
-	space_w := space_advance(r.font) * r.scale
-	line_h  := f32(r.font.line_height) * r.scale
+	space_w := space_advance(font) * scale
+	line_h  := f32(font.line_height) * scale
 
-	min_x := r.origin.x
-	max_x := r.origin.x
-	min_y := r.origin.y + pen_y
+	min_x := origin.x
+	max_x := origin.x
+	min_y := origin.y + pen_y
 	max_y := min_y
 
 	for ch in text {
 		if ch == '\n' {
 			pen_x = 0
 			pen_y += line_h
-			min_y = min(min_y, r.origin.y + pen_y)
-			max_y = max(max_y, r.origin.y + pen_y)
+			min_y = min(min_y, origin.y + pen_y)
+			max_y = max(max_y, origin.y + pen_y)
 			continue
 		}
 		if ch == '\t' {
 			pen_x += space_w * 4
-			max_x = max(max_x, r.origin.x + pen_x)
+			max_x = max(max_x, origin.x + pen_x)
 			continue
 		}
-		glyph, ok := find_glyph(r.font, ch)
+		glyph, ok := find_glyph(font, ch)
 		if !ok {
 			pen_x += space_w
-			max_x = max(max_x, r.origin.x + pen_x)
+			max_x = max(max_x, origin.x + pen_x)
 			continue
 		}
 
@@ -134,23 +73,23 @@ draw_text :: proc(r: ^Renderer, text: string) -> Rect {
 		sw := f32(glyph.size.x)
 		sh := f32(glyph.size.y)
 
-		dx := r.origin.x + pen_x + f32(glyph.off.x) * r.scale
-		dy := r.origin.y + pen_y + f32(glyph.off.y) * r.scale
-		dw := sw * r.scale
-		dh := sh * r.scale
+		dx := origin.x + pen_x + f32(glyph.off.x) * scale
+		dy := origin.y + pen_y + f32(glyph.off.y) * scale
+		dw := sw * scale
+		dh := sh * scale
 
-		r.cb(r.texture, Draw_Call{
-			src   = {{sx, sy}, {sw, sh}},
-			dst   = {{dx, dy}, {dw, dh}},
-			color = r.color,
-		}, r.user_data)
+		cb(src   = {{sx, sy}, {sw, sh}},
+		   dst   = {{dx, dy}, {dw, dh}},
+		   color = color)
 
-		pen_x += f32(glyph.advance) * r.scale
-		max_x = max(max_x, r.origin.x + pen_x)
-		max_y = max(max_y, r.origin.y + pen_y + line_h)
+		pen_x += f32(glyph.advance) * scale
+		max_x = max(max_x, origin.x + pen_x)
+		max_y = max(max_y, origin.y + pen_y + line_h)
 	}
 
-	r.cursor = {pen_x, pen_y}
+	if cursor != nil {
+		cursor^ = {pen_x, pen_y}
+	}
 
 	return {{min_x, min_y}, {max(max_x - min_x, 0), max(max_y - min_y, 0)}}
 }
@@ -159,7 +98,7 @@ draw_text :: proc(r: ^Renderer, text: string) -> Rect {
 // Returns [width, height] in screen pixels. Supports '\n' and '\t'.
 //
 // Pass the same `scale` you would pass to `renderer_init` to get the on-screen size.
-measure_text :: proc(font: Font, text: string, scale: f32 = 1) -> [2]f32 {
+measure_text :: proc (font: Font, text: string, scale: f32 = 1) -> [2]f32 {
 	if len(font.glyphs) == 0 {
 		return {0, 0}
 	}
