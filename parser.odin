@@ -40,14 +40,14 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 		return {}, .No_Elements
 	}
 
-    font_id: xml.Element_ID
-    if doc.elements[0].ident == "font" {
-        font_id = 0
-    } else if id, found := xml.find_child_by_ident(doc, 0, "font"); found {
-        font_id = id
-    } else {
+	font_id: xml.Element_ID
+	if doc.elements[0].ident == "font" {
+		font_id = 0
+	} else if id, found := xml.find_child_by_ident(doc, 0, "font"); found {
+		font_id = id
+	} else {
 		return {}, .No_Root
-    }
+	}
 
 	glyphs := make([dynamic]Font_Glyph, allocator)
 	defer shrink(&glyphs)
