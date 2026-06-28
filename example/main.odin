@@ -5,8 +5,10 @@ import k2 "./karl2d"
 UI_W, UI_H  :: 320, 200
 PIXEL_SCALE :: 4
 
-font_big:   k2.Font
-font_small: k2.Font
+font_thick:    k2.Font
+font_minogram: k2.Font
+font_square:   k2.Font
+font_round:    k2.Font
 
 main :: proc () {
 
@@ -17,11 +19,11 @@ main :: proc () {
 	// window pixels. Origins and font_size stay in logical units inside the draw loop.
 	k2.set_camera(k2.Camera{zoom = f32(PIXEL_SCALE)})
 
-	// Pre-bake each BMFont as a k2 Static font (defined in static_fonts.odin). They are
-	// stored at the BMFont's native line height; k2.draw_text scales by font_size / native
-	// at draw time, so any font_size works.
-	font_big   = load_bmfont_as_static(k2_state, "../fonts/minogram_6x10.xml", "../fonts/minogram_6x10.png")
-	font_small = load_bmfont_as_static(k2_state, "../fonts/square_6x6.xml",   "../fonts/square_6x6.png")
+	// Pre-bake every BMFont in fonts/ as a k2 Static font (defined in static_fonts.odin).
+	font_thick    = load_bmfont_as_static(k2_state, "../fonts/thick_8x8.xml",     "../fonts/thick_8x8.png")
+	font_minogram = load_bmfont_as_static(k2_state, "../fonts/minogram_6x10.xml", "../fonts/minogram_6x10.png")
+	font_square   = load_bmfont_as_static(k2_state, "../fonts/square_6x6.xml",    "../fonts/square_6x6.png")
+	font_round    = load_bmfont_as_static(k2_state, "../fonts/round_6x6.xml",     "../fonts/round_6x6.png")
 
 	for k2.update() {
 		defer k2.reset_frame_allocator()
@@ -29,11 +31,26 @@ main :: proc () {
 
 		k2.clear({30, 30, 40, 255})
 
-		k2.draw_text("Bitmap Fonts!", {10, 10}, 12, {255, 240, 200, 255}, font_big)
+		// The cursor auto-advances on every draw; each block just sets the y and
+		// calls draw_line / draw_paragraph without computing offsets by hand.
+		cursor := Text_Cursor{ pos = {10, 8} }
 
-		k2.draw_text("The quick brown fox jumps over 12345", {10, 30}, 9, {200, 230, 255, 255}, font_small)
-		k2.draw_text("ABCDEF abcdef 0123456789",             {10, 40}, 9, {200, 230, 255, 255}, font_small)
-		k2.draw_text("Multi-line\nis supported!",            {10, 50}, 9, {200, 230, 255, 255}, font_small)
+		draw_line(font_thick, "BITMAP FONTS!", 12, {255, 220, 160, 255}, &cursor)
+		cursor.pos.y += 2
+
+		draw_line(font_minogram, "All four BMFonts, one example", 12, {200, 255, 220, 255}, &cursor)
+		cursor.pos.y += 2
+
+		draw_paragraph(
+			font_square,
+			"The quick brown fox jumps over the lazy dog. " +
+				"0123456789 !@#$%^&*() This paragraph is laid out by draw_paragraph, " +
+				"which uses k2.measure_text to wrap each line at the available width.",
+			9, 200, {200, 230, 255, 255}, &cursor,
+		)
+		cursor.pos.y += 2
+
+		draw_line(font_round, "= round_6x6 =", 9, {255, 200, 200, 255}, &cursor)
 
 		k2.present()
 	}
