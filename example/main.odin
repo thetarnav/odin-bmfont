@@ -31,9 +31,9 @@ main :: proc () {
 
 		k2.draw_text("Bitmap Fonts!", {10, 10}, 12, {255, 240, 200, 255}, font_big)
 
-		k2.draw_text("The quick brown fox jumps over 12345", {10, 80}, 9, {200, 230, 255, 255}, font_small)
-		k2.draw_text("ABCDEF abcdef 0123456789",                {10, 120}, 9, {200, 230, 255, 255}, font_small)
-		k2.draw_text("Multi-line\nis supported!",                {10, 160}, 9, {200, 230, 255, 255}, font_small)
+		k2.draw_text("The quick brown fox jumps over 12345", {10, 30}, 9, {200, 230, 255, 255}, font_small)
+		k2.draw_text("ABCDEF abcdef 0123456789",             {10, 40}, 9, {200, 230, 255, 255}, font_small)
+		k2.draw_text("Multi-line\nis supported!",            {10, 50}, 9, {200, 230, 255, 255}, font_small)
 
 		k2.present()
 	}
