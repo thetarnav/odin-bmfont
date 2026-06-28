@@ -103,10 +103,6 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 		}
 	}
 
-	foo :: proc () {
-		return
-	}
-
 	slice.sort_by(glyphs[:], proc (a, b: Font_Glyph) -> bool {return a.char < b.char})
 	font.glyphs = glyphs[:]
 

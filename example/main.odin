@@ -16,16 +16,16 @@ ren_small:  bmfont.Renderer
 // Karl2D draw callback. The user_data carries a ^k2.Texture; the bmfont `texture` argument is
 // unused here so we leave it nil when constructing the renderer.
 k2_draw_cb :: proc(texture: rawptr, call: bmfont.Draw_Call, user_data: rawptr) {
-	tex := cast(^k2.Texture)user_data
 	k2.draw_texture_fit(
-		tex^,
-		{call.src[0], call.src[1], call.src[2], call.src[3]},
-		{call.dst[0], call.dst[1], call.dst[2], call.dst[3]},
+		(^k2.Texture)(user_data)^,
+		{**call.src.pos, **call.src.size},
+		{**call.dst.pos, **call.dst.size},
 		tint = {call.color.r, call.color.g, call.color.b, call.color.a},
 	)
 }
 
 init :: proc () {
+
 	k2.init(UI_W * PIXEL_SCALE, UI_H * PIXEL_SCALE, "Bitmap Font Example",
 		options = {window_mode = .Windowed_Resizable})
 
@@ -36,21 +36,20 @@ init :: proc () {
 	tex_small     = k2.load_texture_from_bytes(#load("../fonts/square_6x6.png"))
 
 	bmfont.renderer_init(
-		&ren_big, &font_big, nil, k2_draw_cb, &tex_big,
+		&ren_big, font_big, nil, k2_draw_cb, &tex_big,
 		color = {255, 240, 200, 255},
 		scale = f32(PIXEL_SCALE),
 	)
 	bmfont.renderer_init(
-		&ren_small, &font_small, nil, k2_draw_cb, &tex_small,
+		&ren_small, font_small, nil, k2_draw_cb, &tex_small,
 		color = {200, 230, 255, 255},
 		scale = f32(PIXEL_SCALE),
 	)
 }
 
 step :: proc () -> bool {
-	if !k2.update() {
-		return false
-	}
+
+	k2.update() or_return
 	defer k2.reset_frame_allocator()
 	defer free_all(context.temp_allocator)
 
@@ -69,6 +68,7 @@ step :: proc () -> bool {
 	bmfont.draw_text(&ren_small, "Multi-line\nis supported!")
 
 	k2.present()
+
 	return true
 }
 

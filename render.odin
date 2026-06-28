@@ -1,22 +1,15 @@
 package bmfont
 
-// A 2D rectangle: [x, y, w, h]. Follows the convention of most 2D rendering backends.
-Rect :: [4]f32
-
-// An RGBA color. Each channel is in the range 0..255.
+Vec2  :: [2]f32
+Rect  :: struct {using pos: Vec2, size: Vec2}
 Color :: [4]u8
 
 // A single draw operation the renderer wants to issue. The user's draw callback receives one
 // of these for every glyph.
 Draw_Call :: struct {
-	// Source rectangle in atlas pixel space.
-	src: Rect,
-
-	// Destination rectangle in screen/world pixel space.
-	dst: Rect,
-
-	// Tint to apply multiplicatively (so {255,255,255,255} means no tinting).
-	color: Color,
+	src:   Rect,  // Source rectangle in atlas pixel space.
+	dst:   Rect,  // Destination rectangle in screen/world pixel space.
+	color: Color, // Tint to apply multiplicatively (so {255,255,255,255} means no tinting).
 }
 
 // Callback the user provides to forward a draw call to their backend.
@@ -26,7 +19,7 @@ Draw_Call :: struct {
 //
 // `user_data` is whatever the user passed to `renderer_init` for additional context. Use it
 // to carry backend-specific state (the actual texture struct, transforms, etc.).
-Draw_Callback :: proc(texture: rawptr, call: Draw_Call, user_data: rawptr)
+Draw_Callback :: proc (texture: rawptr, call: Draw_Call, user_data: rawptr)
 
 // A generic, backend-agnostic renderer for a parsed BMFont.
 //
@@ -38,12 +31,12 @@ Draw_Callback :: proc(texture: rawptr, call: Draw_Call, user_data: rawptr)
 // All positions and sizes are in screen/world pixels. The font atlas is in source pixels;
 // the renderer multiplies atlas coordinates by `scale` (default 1) to produce screen pixels.
 Renderer :: struct {
-	font:      ^Font,
+	font:      Font,
 	texture:   rawptr,
 	color:     Color,
 	scale:     f32,
-	origin:    [2]f32, // top-left anchor in screen pixels
-	cursor:    [2]f32, // current pen position, relative to origin, in screen pixels
+	origin:    Vec2, // top-left anchor in screen pixels
+	cursor:    Vec2, // current pen position, relative to origin, in screen pixels
 	cb:        Draw_Callback,
 	user_data: rawptr,
 }
@@ -58,13 +51,13 @@ Renderer :: struct {
 // `scale` controls how large each atlas pixel appears on screen. Use 4 to render a 6px font
 // at chunky 4x pixel-art size, or 1 for a 1:1 crisp look.
 renderer_init :: proc(
-	r: ^Renderer,
-	font: ^Font,
-	texture: rawptr,
-	cb: Draw_Callback,
+	r:         ^Renderer,
+	font:      Font,
+	texture:   rawptr,
+	cb:        Draw_Callback,
 	user_data: rawptr = nil,
-	color: Color = {255, 255, 255, 255},
-	scale: f32 = 1,
+	color:     Color  = {255, 255, 255, 255},
+	scale:     f32    = 1,
 ) -> ^Renderer {
 	r.font      = font
 	r.texture   = texture
@@ -101,8 +94,8 @@ renderer_set_scale :: proc(r: ^Renderer, scale: f32) {
 // Returns the bounding rectangle of the drawn text in screen pixels, including the origin.
 // Useful for hit-testing or positioning subsequent text.
 draw_text :: proc(r: ^Renderer, text: string) -> Rect {
-	if r.cb == nil || r.font == nil || len(r.font.glyphs) == 0 {
-		return {r.origin.x + r.cursor.x, r.origin.y + r.cursor.y, 0, 0}
+	if r.cb == nil || len(r.font.glyphs) == 0 {
+		return {r.origin + r.cursor, 0}
 	}
 
 	pen_x := r.cursor.x
@@ -146,9 +139,9 @@ draw_text :: proc(r: ^Renderer, text: string) -> Rect {
 		dw := sw * r.scale
 		dh := sh * r.scale
 
-		r.cb(r.texture, Draw_Call {
-			src   = {sx, sy, sw, sh},
-			dst   = {dx, dy, dw, dh},
+		r.cb(r.texture, Draw_Call{
+			src   = {{sx, sy}, {sw, sh}},
+			dst   = {{dx, dy}, {dw, dh}},
 			color = r.color,
 		}, r.user_data)
 
@@ -159,15 +152,15 @@ draw_text :: proc(r: ^Renderer, text: string) -> Rect {
 
 	r.cursor = {pen_x, pen_y}
 
-	return {min_x, min_y, max(max_x - min_x, 0), max(max_y - min_y, 0)}
+	return {{min_x, min_y}, {max(max_x - min_x, 0), max(max_y - min_y, 0)}}
 }
 
 // Measure how much space a string would take up when drawn, without actually drawing it.
 // Returns [width, height] in screen pixels. Supports '\n' and '\t'.
 //
 // Pass the same `scale` you would pass to `renderer_init` to get the on-screen size.
-measure_text :: proc(font: ^Font, text: string, scale: f32 = 1) -> [2]f32 {
-	if font == nil || len(font.glyphs) == 0 {
+measure_text :: proc(font: Font, text: string, scale: f32 = 1) -> [2]f32 {
+	if len(font.glyphs) == 0 {
 		return {0, 0}
 	}
 
@@ -205,8 +198,7 @@ measure_text :: proc(font: ^Font, text: string, scale: f32 = 1) -> [2]f32 {
 
 // Find a glyph by codepoint using binary search. Glyphs are sorted by char at load time.
 // Returns the glyph and true on success, or a zero glyph and false if not found.
-find_glyph :: proc(font: ^Font, ch: rune) -> (Font_Glyph, bool) {
-	if font == nil do return {}, false
+find_glyph :: proc(font: Font, ch: rune) -> (Font_Glyph, bool) {
 
 	lo, hi := 0, len(font.glyphs)
 	for lo < hi {
@@ -225,7 +217,7 @@ find_glyph :: proc(font: ^Font, ch: rune) -> (Font_Glyph, bool) {
 
 // Best-effort width of a space in this font, in atlas pixels. Tries the space glyph first,
 // then falls back to the first glyph's advance, then to 6.
-space_advance :: proc(font: ^Font) -> f32 {
+space_advance :: proc(font: Font) -> f32 {
 	if g, ok := find_glyph(font, ' '); ok {
 		return f32(g.advance)
 	}
