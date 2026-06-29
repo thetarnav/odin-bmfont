@@ -1,30 +1,18 @@
-package example
-
 // Sequential text layout helpers built on top of k2.draw_text and k2.measure_text.
-//
-// `Text_Cursor` carries the y position of the next line. `draw_line` advances it past
-// a single line of text; `draw_paragraph` word-wraps a multi-line string at
-// `max_width` and advances the cursor past every line.
+
+package example
 
 import k2 "./karl2d"
 
-Vec2 :: k2.Vec2
-
-// A draw cursor. `pos` is the top-left of the next line to draw. `extra_gap` is the
-// extra vertical space inserted between lines (on top of the font's own line height).
 Text_Cursor :: struct {
-	pos:       Vec2,
-	extra_gap: f32,
+	pos:       Vec2, // is the top-left of the next line to draw
+	extra_gap: f32,  // extra vertical space inserted between lines
 }
 
-// Vertical advance for one line of `font` at `font_size`. Uses k2.measure_text with a
-// single tall character so it works for both k2's static and dynamic font paths.
 line_height :: proc(font: k2.Font, font_size: f32) -> f32 {
 	return k2.measure_text("M", font_size, font).y
 }
 
-// Draw one line of text at the cursor and advance the cursor's y past it. The cursor's
-// x is not changed.
 draw_line :: proc(
 	font:      k2.Font,
 	text:      string,
@@ -36,12 +24,6 @@ draw_line :: proc(
 	cursor.pos.y += line_height(font, font_size) + cursor.extra_gap
 }
 
-// Word-wrap `text` to fit lines within `max_width` and draw each line. The cursor's y
-// is advanced past every line.
-//
-// Hard newlines in the input force a line break (and the word before them is flushed
-// to its own line). A single word wider than `max_width` is placed on its own line
-// regardless. Leading spaces at the start of each emitted line are trimmed.
 draw_paragraph :: proc(
 	font:      k2.Font,
 	text:      string,
@@ -58,6 +40,7 @@ draw_paragraph :: proc(
 
 	i, n := 0, len(text)
 	for i < n {
+
 		// Read one word (non-space, non-newline).
 		word_start := i
 		for i < n && text[i] != ' ' && text[i] != '\n' {

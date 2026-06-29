@@ -9,7 +9,7 @@ import bmfont ".."
 // Load a BMFont (XML + PNG) as a k2 Static font. The atlas is the BMFont's PNG, baked
 // at the BMFont's native line height. After this, `k2.draw_text` can be called with any
 // `font_size` — k2 scales the result by `font_size / prebaked_size` at draw time.
-load_bmfont_as_static :: proc(
+load_bmfont :: proc(
 	state:     ^k2.State,
 	$XML_PATH: string,
 	$PNG_PATH: string,
