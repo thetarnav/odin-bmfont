@@ -46,6 +46,7 @@ Font :: struct {
 	base:        int,
 	scale:       [2]int,
 	glyphs:      []Glyph, // sorted codepoint -> glyph
+	ranges:      []int,   // Run lengths of consecutive codepoints in `glyphs`
 }
 
 Error :: union #shared_nil {
@@ -143,6 +144,24 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 	slice.sort_by(glyphs[:], proc (a, b: Glyph) -> bool {return a.char < b.char})
 	font.glyphs = glyphs[:]
 
+	// build glyph ranges for consecutive codepoints
+	if len(glyphs) > 0 {
+		ranges := make([dynamic]int, allocator)
+		defer shrink(&ranges)
+		defer font.ranges = ranges[:]
+
+		range: int = 1
+		for i in 1..<len(glyphs) {
+			if glyphs[i].char == glyphs[i-1].char + 1 {
+				range += 1
+			} else {
+				append(&ranges, range)
+				range = 1
+			}
+		}
+		append(&ranges, range)
+	}
+
 	return
 }
 
@@ -160,17 +179,23 @@ parse_int_list :: proc(str: string, $T: typeid) -> (out: T, ok: bool) {
 	return out, written > 0
 }
 
-// Find a glyph by codepoint using binary search. Glyphs are sorted by char at load time.
 // Returns the glyph and true on success, or a zero glyph and false if not found.
 @require_results
 find_glyph :: proc(font: Font, ch: rune) -> (g: Glyph, ok: bool) {
-	idx := slice.binary_search_by(font.glyphs, ch, proc (g: Glyph, ch: rune) -> slice.Ordering {
-		return g.char < ch ? .Less : .Greater
-	}) or_return
-	return font.glyphs[idx], true
+	offset: int
+	for range in font.ranges {
+		char := font.glyphs[offset].char
+		if ch < char || ch >= char + rune(range) {
+			offset += range
+			continue
+		}
+		return font.glyphs[offset + int(ch-char)], true
+	}
+	return
 }
 get_glyph :: find_glyph
 
 destroy_font :: proc (font: Font, allocator := context.allocator, loc := #caller_location) -> mem.Allocator_Error {
-	return delete(font.glyphs, allocator, loc=loc)
+	delete(font.glyphs, allocator, loc=loc) or_return
+	return delete(font.ranges, allocator, loc=loc)
 }
