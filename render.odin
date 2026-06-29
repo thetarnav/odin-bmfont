@@ -19,6 +19,11 @@ Draw_Callback :: proc (
 // `origin` - top-left anchor in screen pixels
 // `cursor` - current pen position, relative to origin, in screen pixels
 //
+// `font.info.spacing[0]` (horizontal) is added to each glyph's advance, and
+// `font.info.spacing[1]` (vertical) is added to the line height. `font.info.stretch_h`
+// (default 100) scales the destination glyph width. Default zero values for the simple
+// BMFonts in this repo make these no-ops.
+//
 // Returns the bounding rectangle of the drawn text in screen pixels, including the origin.
 // Useful for hit-testing or positioning subsequent text.
 draw_text :: proc(
@@ -36,8 +41,11 @@ draw_text :: proc(
 		return {origin + c, 0}
 	}
 
-	space_w := space_advance(font) * scale
-	line_h  := f32(font.line_height) * scale
+	space_w  := (space_advance(font) + f32(font.spacing[.horizontal])) * scale
+	line_h   := (f32(font.line_height) + f32(font.spacing[.vertical])) * scale
+	stretch  := f32(font.stretch_h) / 100.0
+	if stretch == 0 do stretch = 1
+	extra_x  := f32(font.spacing[.horizontal]) * scale
 
 	lo := origin + {0, c.y}
 	hi := lo
@@ -63,11 +71,13 @@ draw_text :: proc(
 		}
 
 		s := Rect{Vec2(glyph.pos), Vec2(glyph.size)}
-		d := Rect{pos  = origin + c + Vec2(glyph.off) * scale,
-		          size = s.size * scale}
+		d := Rect{
+			pos  = origin + c + Vec2(glyph.off) * scale,
+			size = {s.size.x * scale * stretch, s.size.y * scale},
+		}
 		cb(src=s, dst=d)
 
-		c.x += f32(glyph.advance) * scale
+		c.x += f32(glyph.advance) * scale + extra_x
 		hi = linalg.max(hi, origin + c + {0, line_h})
 	}
 
@@ -79,17 +89,19 @@ draw_text :: proc(
 }
 
 // Measure how much space a string would take up when drawn, without actually drawing it.
-// Returns [width, height] in screen pixels. Supports '\n' and '\t'.
+// Returns [width, height] in screen pixels. Supports '\n' and '\t'. Mirrors the
+// `info.spacing` and `info.stretch_h` adjustments used by `draw_text`.
 //
-// Pass the same `scale` you would pass to `renderer_init` to get the on-screen size.
+// Pass the same `scale` you would pass to `draw_text` to get the on-screen size.
 measure_text :: proc (font: Font, text: string, scale: f32 = 1) -> Vec2 {
 
 	if len(font.glyphs) == 0 {
 		return 0
 	}
 
-	space_w := space_advance(font) * scale
-	line_h  := f32(font.line_height) * scale
+	space_w := (space_advance(font) + f32(font.spacing[.horizontal])) * scale
+	line_h  := (f32(font.line_height) + f32(font.spacing[.vertical])) * scale
+	extra_x := f32(font.spacing[.horizontal]) * scale
 
 	pen_x: f32 = 0
 	pen_y: f32 = 0
@@ -113,7 +125,7 @@ measure_text :: proc (font: Font, text: string, scale: f32 = 1) -> Vec2 {
 			pen_x += space_w
 			continue
 		}
-		pen_x += f32(glyph.advance) * scale
+		pen_x += f32(glyph.advance) * scale + extra_x
 	}
 	max_x = max(max_x, pen_x)
 

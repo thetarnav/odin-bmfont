@@ -47,7 +47,9 @@ load_bmfont_as_static :: proc(
 
 	// One Font_Baked_Glyph per BMFont glyph, in codepoint order. `index` is unused by
 	// draw_text_static's lookup path (it only reads `value` and `rect/offset/advance`),
-	// but k2 still requires the field to be set.
+	// but k2 still requires the field to be set. `info.spacing.horizontal` is folded into
+	// the stored advance so k2's `char_offset.x += g.advance * scl` picks it up automatically.
+	spacing_x := f32(bm.spacing[.horizontal])
 	glyphs := make([]k2.Font_Baked_Glyph, len(bm.glyphs), allocator)
 	for g, i in bm.glyphs {
 		glyphs[i] = k2.Font_Baked_Glyph{
@@ -55,7 +57,7 @@ load_bmfont_as_static :: proc(
 			index   = i,
 			rect    = {**k2.Vec2(g.pos), **k2.Vec2(g.size)},
 			offset  = k2.Vec2(g.off),
-			advance = f32(g.advance),
+			advance = f32(g.advance) + spacing_x,
 		}
 	}
 
@@ -76,7 +78,7 @@ load_bmfont_as_static :: proc(
 		static_glyphs       = glyphs,
 		static_glyph_ranges = ranges,
 		static_font_size    = f32(bm.line_height),
-		static_line_spacing = f32(bm.line_height),
+		static_line_spacing = f32(bm.line_height) + f32(bm.spacing[.vertical]),
 	})
 
 	return k2.Font(len(state.fonts) - 1)
