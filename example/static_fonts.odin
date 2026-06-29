@@ -1,5 +1,3 @@
-package example
-
 // Static k2 font path for BMFonts — bypasses fontstash entirely.
 //
 // k2's `Static` font type stores a pre-baked atlas and an array of `Font_Baked_Glyph`
@@ -7,6 +5,8 @@ package example
 // each glyph directly with `k2.draw_texture_fit`. There is no fontstash, no TTF shim,
 // no dynamic atlas — the bitmap is uploaded once at load and k2 scales it by
 // `font_size / static_font_size` at draw time.
+
+package example
 
 import k2   "./karl2d"
 import bmfont ".."
@@ -27,6 +27,7 @@ ranges_from_glyphs :: proc(
 	if len(glyphs) == 0 do return {}
 
 	ranges := make([dynamic]k2.Font_Baked_Glyph_Range, 0, allocator)
+	defer shrink(&ranges)
 
 	range_start_idx := 0
 	range_start_char := glyphs[0].value
