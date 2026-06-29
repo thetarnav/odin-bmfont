@@ -14,6 +14,45 @@ import "core:image"
 import "core:log"
 import "core:slice"
 
+// Build `k2.Font_Baked_Glyph_Range` records from a sorted slice of baked glyphs.
+// Consecutive codepoints (`glyphs[i].value == glyphs[i-1].value + 1`) are merged into
+// a single range. `draw_text_static` scans `static_glyph_ranges` linearly to find a
+// codepoint, so collapsing contiguous runs turns the lookup from O(N) into O(runs)
+// where runs is the number of maximal contiguous codepoint blocks in the font (typically
+// a handful for an ASCII set: letters, digits, punctuation).
+ranges_from_glyphs :: proc(
+	glyphs:   []k2.Font_Baked_Glyph,
+	allocator := context.allocator,
+) -> []k2.Font_Baked_Glyph_Range {
+	if len(glyphs) == 0 do return {}
+
+	ranges := make([dynamic]k2.Font_Baked_Glyph_Range, 0, allocator)
+
+	range_start_idx := 0
+	range_start_char := glyphs[0].value
+
+	for i in 1..<len(glyphs) {
+		if glyphs[i].value != glyphs[i-1].value + 1 {
+			append(&ranges, k2.Font_Baked_Glyph_Range{
+				start_idx = range_start_idx,
+				start     = range_start_char,
+				end       = glyphs[i-1].value + 1,
+			})
+			range_start_idx = i
+			range_start_char = glyphs[i].value
+		}
+	}
+
+	// Close the final (still-open) range.
+	append(&ranges, k2.Font_Baked_Glyph_Range{
+		start_idx = range_start_idx,
+		start     = range_start_char,
+		end       = glyphs[len(glyphs) - 1].value + 1,
+	})
+
+	return ranges[:]
+}
+
 // Load a BMFont (XML + PNG) as a k2 Static font. The atlas is the BMFont's PNG, baked
 // at the BMFont's native line height. After this, `k2.draw_text` can be called with any
 // `font_size` — k2 scales the result by `font_size / prebaked_size` at draw time.
@@ -47,8 +86,9 @@ load_bmfont_as_static :: proc(
 
 	// One Font_Baked_Glyph per BMFont glyph, in codepoint order. `index` is unused by
 	// draw_text_static's lookup path (it only reads `value` and `rect/offset/advance`),
-	// but k2 still requires the field to be set. `info.spacing.x` is folded into
-	// the stored advance so k2's `char_offset.x += g.advance * scl` picks it up automatically.
+	// but k2 still requires the field to be set. `info.spacing.horizontal` is folded
+	// into the stored advance so k2's `char_offset.x += g.advance * scl` picks it up
+	// automatically.
 	spacing_x := f32(bm.spacing.x)
 	glyphs := make([]k2.Font_Baked_Glyph, len(bm.glyphs), allocator)
 	for g, i in bm.glyphs {
@@ -61,16 +101,7 @@ load_bmfont_as_static :: proc(
 		}
 	}
 
-	// One range per glyph. draw_text_static does a linear scan over `static_glyph_ranges`,
-	// so this is O(N) per codepoint; fine for the small ASCII sets these BMFonts ship.
-	ranges := make([]k2.Font_Baked_Glyph_Range, len(bm.glyphs), allocator)
-	for g, i in bm.glyphs {
-		ranges[i] = k2.Font_Baked_Glyph_Range{
-			start_idx = i,
-			start     = g.char,
-			end       = g.char + 1,
-		}
-	}
+	ranges := ranges_from_glyphs(glyphs, allocator)
 
 	append(&state.fonts, k2.Font_Data{
 		atlas               = atlas_tex,
