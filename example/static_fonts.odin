@@ -1,18 +1,10 @@
-// Static k2 font path for BMFonts — bypasses fontstash entirely.
-//
-// k2's `Static` font type stores a pre-baked atlas and an array of `Font_Baked_Glyph`
-// records. `draw_text_static` iterates the text, looks up each codepoint, and renders
-// each glyph directly with `k2.draw_texture_fit`. There is no fontstash, no TTF shim,
-// no dynamic atlas — the bitmap is uploaded once at load and k2 scales it by
-// `font_size / static_font_size` at draw time.
+// Static karl2d font path for BMFonts
 
 package example
 
-import k2   "./karl2d"
-import bmfont ".."
-import "core:image"
 import "core:log"
-import "core:slice"
+import k2 "./karl2d"
+import bmfont ".."
 
 // Load a BMFont (XML + PNG) as a k2 Static font. The atlas is the BMFont's PNG, baked
 // at the BMFont's native line height. After this, `k2.draw_text` can be called with any
@@ -21,7 +13,6 @@ load_bmfont_as_static :: proc(
 	state:     ^k2.State,
 	$XML_PATH: string,
 	$PNG_PATH: string,
-	allocator := context.allocator,
 ) -> k2.Font {
 
 	bm, ferr := bmfont.load_font_from_bytes(#load(XML_PATH), context.temp_allocator)
@@ -30,20 +21,9 @@ load_bmfont_as_static :: proc(
 		return k2.FONT_NONE
 	}
 
-	img, ierr := image.load_from_bytes(#load(PNG_PATH), options = {.alpha_add_if_missing})
-	if ierr != nil {
-		log.errorf("Failed to load PNG %s: %v", PNG_PATH, ierr)
-		return k2.FONT_NONE
-	}
+	atlas_tex := k2.load_texture_from_bytes(#load(PNG_PATH))
 
-	pixels := slice.reinterpret([]k2.Color, img.pixels.buf[:])
-	atlas_tex := k2.load_texture_from_image(k2.Image{
-		pixels = pixels,
-		width  = img.width,
-		height = img.height,
-	})
-
-	glyphs := make([]k2.Font_Baked_Glyph, len(bm.glyphs), allocator)
+	glyphs := make([]k2.Font_Baked_Glyph, len(bm.glyphs), state.allocator)
 	for g, i in bm.glyphs {
 		glyphs[i] = k2.Font_Baked_Glyph{
 			value   = g.char,
@@ -54,7 +34,7 @@ load_bmfont_as_static :: proc(
 		}
 	}
 
-	ranges := make([]k2.Font_Baked_Glyph_Range, len(bm.ranges), allocator)
+	ranges := make([]k2.Font_Baked_Glyph_Range, len(bm.ranges), state.allocator)
 	{
 		offset: int
 		for &range, i in ranges {
