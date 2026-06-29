@@ -21,6 +21,7 @@ load_bmfont_as_static :: proc(
 	state:     ^k2.State,
 	$XML_PATH: string,
 	$PNG_PATH: string,
+	allocator := context.allocator,
 ) -> k2.Font {
 
 	bm, ferr := bmfont.load_font_from_bytes(#load(XML_PATH), context.temp_allocator)
@@ -47,20 +48,20 @@ load_bmfont_as_static :: proc(
 	// One Font_Baked_Glyph per BMFont glyph, in codepoint order. `index` is unused by
 	// draw_text_static's lookup path (it only reads `value` and `rect/offset/advance`),
 	// but k2 still requires the field to be set.
-	glyphs := make([]k2.Font_Baked_Glyph, len(bm.glyphs), context.allocator)
+	glyphs := make([]k2.Font_Baked_Glyph, len(bm.glyphs), allocator)
 	for g, i in bm.glyphs {
 		glyphs[i] = k2.Font_Baked_Glyph{
 			value   = g.char,
 			index   = i,
-			rect    = {f32(g.pos.x), f32(g.pos.y), f32(g.size.x), f32(g.size.y)},
-			offset  = {f32(g.off.x), f32(g.off.y)},
+			rect    = {**k2.Vec2(g.pos), **k2.Vec2(g.size)},
+			offset  = k2.Vec2(g.off),
 			advance = f32(g.advance),
 		}
 	}
 
 	// One range per glyph. draw_text_static does a linear scan over `static_glyph_ranges`,
 	// so this is O(N) per codepoint; fine for the small ASCII sets these BMFonts ship.
-	ranges := make([]k2.Font_Baked_Glyph_Range, len(bm.glyphs), context.allocator)
+	ranges := make([]k2.Font_Baked_Glyph_Range, len(bm.glyphs), allocator)
 	for g, i in bm.glyphs {
 		ranges[i] = k2.Font_Baked_Glyph_Range{
 			start_idx = i,
