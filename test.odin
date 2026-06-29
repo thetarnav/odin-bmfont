@@ -3,8 +3,10 @@
 package bmfont
 
 import "core:testing"
+import "core:log"
 import "core:os"
 import "core:fmt"
+import "core:strings"
 import "core:path/filepath"
 import "core:encoding/json"
 
@@ -85,10 +87,16 @@ run_snapshot :: proc(t: ^testing.T, name, xml_path: string) {
 	}
 
 	if !bytes_equal(expected, snapshot) {
-		testing.expectf(t, false,
-			"snapshot mismatch for %s — re-run with -update if the change is intentional",
+		// Build the full diagnostic message first and hand it to a single log.error
+		// call so the test runner emits it as one record (and not interleaved with
+		// other log lines from the test framework).
+		diff := simple_line_diff(string(expected), string(snapshot))
+		msg := fmt.tprintf(
+			"snapshot mismatch for %s — re-run with -update if the change is intentional\n\n%s",
 			snapshot_path,
+			diff,
 		)
+		log.error(msg)
 	}
 }
 
@@ -98,6 +106,67 @@ bytes_equal :: proc(a, b: []u8) -> bool {
 		if a[i] != b[i] do return false
 	}
 	return true
+}
+
+// Basic line-by-line diff between two strings. Lines that are equal are skipped;
+// differing lines are emitted with `  ` (unchanged prefix reused), `- ` (old), and
+// `+ ` (new) markers. Output is truncated to a sane size so a wildly-different
+// snapshot doesn't flood the test log. Good enough to spot which fields changed
+// (a JSON diff where line 50 says `"stretch_h": 100` vs `"stretch_h": 999` is
+// exactly what a human eyeballs anyway).
+simple_line_diff :: proc(old_text, new_text: string) -> string {
+	MAX_DIFF_LINES :: 64
+
+	old_lines := strings.split(old_text, "\n", context.temp_allocator)
+	new_lines := strings.split(new_text, "\n", context.temp_allocator)
+
+	buf: [dynamic]u8
+	defer delete(buf)
+
+	emit :: proc(b: ^[dynamic]u8, prefix, line: string) {
+		append(b, prefix)
+		append(b, line)
+		append(b, '\n')
+	}
+
+	line_count: int
+	truncated := false
+
+	// Walk both line slices by index. Where they agree, drop the line; where they
+	// disagree, emit both with `- ` and `+ ` markers.
+	i: int
+	for i < len(old_lines) {
+		if line_count >= MAX_DIFF_LINES {
+			truncated = true
+			break
+		}
+		if i < len(new_lines) && old_lines[i] == new_lines[i] {
+			i += 1
+			continue
+		}
+		emit(&buf, "- ", old_lines[i])
+		if i < len(new_lines) {
+			emit(&buf, "+ ", new_lines[i])
+		}
+		line_count += 1
+		i += 1
+	}
+
+	// Trailing lines only present in `new`.
+	for j in len(old_lines)..<len(new_lines) {
+		if line_count >= MAX_DIFF_LINES {
+			truncated = true
+			break
+		}
+		emit(&buf, "+ ", new_lines[j])
+		line_count += 1
+	}
+
+	if truncated {
+		emit(&buf, "  ", fmt.tprintf("... diff truncated at %d lines ...", MAX_DIFF_LINES))
+	}
+
+	return string(buf[:])
 }
 
 @test
