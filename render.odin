@@ -41,11 +41,10 @@ draw_text :: proc(
 		return {origin + c, 0}
 	}
 
-	space_w  := (space_advance(font) + f32(font.spacing[.horizontal])) * scale
-	line_h   := (f32(font.line_height) + f32(font.spacing[.vertical])) * scale
-	stretch  := f32(font.stretch_h) / 100.0
-	if stretch == 0 do stretch = 1
-	extra_x  := f32(font.spacing[.horizontal]) * scale
+	space_w  := (space_advance(font) + f32(font.spacing.x)) * scale
+	line_h   := (f32(font.line_height) + f32(font.spacing.y)) * scale
+	stretch  := f32(font.stretch_h) / 100.0 if font.stretch_h != 0 else 1
+	extra_x  := f32(font.spacing.x) * scale
 
 	lo := origin + {0, c.y}
 	hi := lo
@@ -99,9 +98,9 @@ measure_text :: proc (font: Font, text: string, scale: f32 = 1) -> Vec2 {
 		return 0
 	}
 
-	space_w := (space_advance(font) + f32(font.spacing[.horizontal])) * scale
-	line_h  := (f32(font.line_height) + f32(font.spacing[.vertical])) * scale
-	extra_x := f32(font.spacing[.horizontal]) * scale
+	space_w  := (space_advance(font) + f32(font.spacing.x)) * scale
+	line_h   := (f32(font.line_height) + f32(font.spacing.y)) * scale
+	extra_x  := f32(font.spacing.x) * scale
 
 	pen_x: f32 = 0
 	pen_y: f32 = 0

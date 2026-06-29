@@ -1,5 +1,6 @@
 package bmfont
 
+import "core:mem"
 import "core:encoding/xml"
 import "core:strconv"
 import "core:strings"
@@ -13,43 +14,29 @@ Glyph :: struct {
 	page, channel:  u8,
 }
 
-// The character-set encoding for the font page. The BMFont `<info unicode="…">` attribute.
+// The character-set encoding for the font page. `<info unicode="…">`
 Charset :: enum {
 	Unicode,  // 0 — standard Unicode codepoints
 	Symbol,   // 1 — symbol font (e.g. Webdings)
 	Japanese, // 2 — Shift-JIS
 }
 
-// Index into the BMFont `<info padding="top,right,bottom,left">` array.
-Padding_Index :: enum {
-	top,
-	right,
-	bottom,
-	left,
-}
+// `<info padding="top,right,bottom,left">`
+Padding_Index :: enum {Top, Right, Bottom, Left}
 
-// Index into the BMFont `<info spacing="horizontal,vertical">` array.
-Spacing_Index :: enum {
-	horizontal,
-	vertical,
-}
-
-// Properties from the BMFont `<info>` tag. The simple BMFonts shipped with this project
-// only set `face`/`size`/`bold`/`italic`; full BMFont exports (e.g. Glyph Designer)
-// also include `charset`, `unicode`, `stretchH`, `smooth`, `aa`, `padding` and `spacing`.
-// Fields default to zero/empty/false when the corresponding attribute is absent.
+// Properties from the BMFont `<info>` tag.
 Info :: struct {
 	face:      string,
-	size:      int,         // in points (informational; not used by the renderer)
-	bold:      bool,
-	italic:    bool,
 	charset:   string,
 	unicode:   Charset,
-	stretch_h: int,         // horizontal stretch percentage; 100 = no stretch
+	bold:      bool,
+	italic:    bool,
 	smooth:    bool,
 	aa:        bool,
+	size:      int,         // in points (informational; not used by the renderer)
+	stretch_h: int,         // horizontal stretch percentage; 100 = no stretch
 	padding:   [Padding_Index]int, // top/right/bottom/left padding baked into the atlas
-	spacing:   [Spacing_Index]int, // horizontal/vertical gap between glyphs/lines
+	spacing:   [2]int,             // horizontal/vertical gap between glyphs/lines
 }
 
 // A bitmap font parsed from a BMFont XML file
@@ -72,6 +59,7 @@ BMFont_Error :: enum {
 	No_Root,
 }
 
+@require_results
 load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> (font: Font, err: Error) {
 
 	doc := xml.parse(bytes, {flags = {.Ignore_Unsupported}}, allocator=context.temp_allocator) or_return
@@ -100,23 +88,17 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 		case "info":
 			for attr in tag.attribs {
 				switch attr.key {
-				case "face":      font.face      = attr.val
-				case "size":      font.size      = strconv.parse_int(attr.val) or_else 0
-				case "bold":      font.bold      = (strconv.parse_int(attr.val) or_else 0) != 0
-				case "italic":    font.italic    = (strconv.parse_int(attr.val) or_else 0) != 0
-				case "charset":   font.charset   = attr.val
-				case "unicode":   font.unicode   = Charset(strconv.parse_int(attr.val) or_else 0)
-				case "stretchH":  font.stretch_h = strconv.parse_int(attr.val) or_else 100
-				case "smooth":    font.smooth    = (strconv.parse_int(attr.val) or_else 0) != 0
-				case "aa":        font.aa        = (strconv.parse_int(attr.val) or_else 0) != 0
-				case "padding":
-					if v, ok := parse_padding(attr.val); ok {
-						font.padding = v
-					}
-				case "spacing":
-					if v, ok := parse_spacing(attr.val); ok {
-						font.spacing = v
-					}
+				case "face":     font.face      = strings.clone(attr.val, allocator)
+				case "size":     font.size      = strconv.parse_int(attr.val) or_else 0
+				case "bold":     font.bold      = (strconv.parse_int(attr.val) or_else 0) != 0
+				case "italic":   font.italic    = (strconv.parse_int(attr.val) or_else 0) != 0
+				case "charset":  font.charset   = strings.clone(attr.val, allocator)
+				case "unicode":  font.unicode   = Charset(strconv.parse_int(attr.val) or_else 0)
+				case "stretchH": font.stretch_h = strconv.parse_int(attr.val) or_else 100
+				case "smooth":   font.smooth    = (strconv.parse_int(attr.val) or_else 0) != 0
+				case "aa":       font.aa        = (strconv.parse_int(attr.val) or_else 0) != 0
+				case "padding":  font.padding   = parse_int_list(attr.val, [Padding_Index]int) or_else {}
+				case "spacing":  font.spacing   = parse_int_list(attr.val, [2]int) or_else {}
 				}
 			}
 		case "common":
@@ -165,45 +147,22 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 }
 
 // Parse a comma-separated integer list like "0,0,0,0" or "2,2" into a fixed-size array.
-// Trailing/empty parts and out-of-range counts are ignored. Returns `ok=false` if the
-// string has zero numeric parts. The scratch buffer from `strings.split` uses the temp
-// allocator so it is freed automatically at the end of the frame.
-parse_int_list :: proc(s: string, $N: int) -> (out: [N]int, ok: bool) {
-	if len(s) == 0 do return
-	parts, _ := strings.split(s, ",", context.temp_allocator)
-
+@(private, require_results)
+parse_int_list :: proc(str: string, $T: typeid) -> (out: T, ok: bool) {
 	written := 0
-	for p in parts {
-		if written >= N do break
+	it := str
+	for p in strings.split_iterator(&it, ",") {
+		if written >= len(out) do break
 		v := strconv.parse_int(strings.trim_space(p)) or_continue
-		out[written] = v
+		out[auto_cast written] = v
 		written += 1
 	}
 	return out, written > 0
 }
 
-// Parse the BMFont `<info padding="top,right,bottom,left">` attribute into a named array.
-parse_padding :: proc(s: string) -> (out: [Padding_Index]int, ok: bool) {
-	raw := parse_int_list(s, 4) or_return
-	return {
-		.top    = raw[0],
-		.right  = raw[1],
-		.bottom = raw[2],
-		.left   = raw[3],
-	}, true
-}
-
-// Parse the BMFont `<info spacing="horizontal,vertical">` attribute into a named array.
-parse_spacing :: proc(s: string) -> (out: [Spacing_Index]int, ok: bool) {
-	raw := parse_int_list(s, 2) or_return
-	return {
-		.horizontal = raw[0],
-		.vertical   = raw[1],
-	}, true
-}
-
 // Find a glyph by codepoint using binary search. Glyphs are sorted by char at load time.
 // Returns the glyph and true on success, or a zero glyph and false if not found.
+@require_results
 find_glyph :: proc(font: Font, ch: rune) -> (g: Glyph, ok: bool) {
 	idx := slice.binary_search_by(font.glyphs, ch, proc (g: Glyph, ch: rune) -> slice.Ordering {
 		return g.char < ch ? .Less : .Greater
@@ -212,6 +171,6 @@ find_glyph :: proc(font: Font, ch: rune) -> (g: Glyph, ok: bool) {
 }
 get_glyph :: find_glyph
 
-destroy_font :: proc (font: Font, allocator := context.allocator, loc := #caller_location) {
-	delete(font.glyphs, allocator, loc=loc)
+destroy_font :: proc (font: Font, allocator := context.allocator, loc := #caller_location) -> mem.Allocator_Error {
+	return delete(font.glyphs, allocator, loc=loc)
 }
