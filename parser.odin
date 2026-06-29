@@ -5,7 +5,7 @@ import "core:strconv"
 import "core:slice"
 
 // A single glyph in a BMFont atlas. Coordinates are in source pixels.
-Font_Glyph :: struct {
+Glyph :: struct {
 	char:           rune,
 	pos, size, off: [2]i16,
 	advance:        i16,
@@ -18,7 +18,7 @@ Font :: struct {
 	line_height: int,
 	base:        int,
 	scale:       [2]int,
-	glyphs:      []Font_Glyph, // sorted codepoint -> glyph
+	glyphs:      []Glyph, // sorted codepoint -> glyph
 }
 
 Error :: union #shared_nil {
@@ -49,7 +49,7 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 		return {}, .No_Root
 	}
 
-	glyphs := make([dynamic]Font_Glyph, allocator)
+	glyphs := make([dynamic]Glyph, allocator)
 	defer shrink(&glyphs)
 
 	for v in doc.elements[font_id].value {
@@ -79,7 +79,7 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 				char := doc.elements[char_id]
 				if char.ident != "char" do continue
 
-				g: Font_Glyph
+				g: Glyph
 
 				for attr in char.attribs {
 					switch attr.key {
@@ -103,11 +103,21 @@ load_font_from_bytes :: proc (bytes: []byte, allocator := context.allocator) -> 
 		}
 	}
 
-	slice.sort_by(glyphs[:], proc (a, b: Font_Glyph) -> bool {return a.char < b.char})
+	slice.sort_by(glyphs[:], proc (a, b: Glyph) -> bool {return a.char < b.char})
 	font.glyphs = glyphs[:]
 
 	return
 }
+
+// Find a glyph by codepoint using binary search. Glyphs are sorted by char at load time.
+// Returns the glyph and true on success, or a zero glyph and false if not found.
+find_glyph :: proc(font: Font, ch: rune) -> (g: Glyph, ok: bool) {
+	idx := slice.binary_search_by(font.glyphs, ch, proc (g: Glyph, ch: rune) -> slice.Ordering {
+		return g.char < ch ? .Less : .Greater
+	}) or_return
+	return font.glyphs[idx], true
+}
+get_glyph :: find_glyph
 
 destroy_font :: proc (font: Font, allocator := context.allocator, loc := #caller_location) {
 	delete(font.glyphs, allocator, loc=loc)
