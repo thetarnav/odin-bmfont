@@ -11,7 +11,6 @@ package bmfont
 
 import "core:mem"
 import "core:encoding/xml"
-import "core:encoding/json"
 import "core:strconv"
 import "core:strings"
 import "core:slice"
@@ -43,7 +42,7 @@ Encoding :: enum {
 // Properties from the BMFont `<info>` tag.
 Info :: struct {
 	face:      string,
-	charset:   string,
+	charset:   string, // The name of the OEM charset used (when not unicode)
 	unicode:   Charset,
 	bold:      bool,
 	italic:    bool,

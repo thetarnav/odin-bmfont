@@ -75,6 +75,9 @@ load_bmfont_json :: proc(
 		return k2.FONT_NONE
 	}
 
+	// spacing is zero by default
+	bm.spacing = {1, 1}
+
 	// Reinterpret the raw RGBA bytes as a k2.Color slice (same byte layout).
 	atlas_tex := k2.load_texture_from_image(k2.Image{
 		pixels = atlas.pixels,

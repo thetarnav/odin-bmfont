@@ -14,15 +14,17 @@ Atlas :: struct {
 // (pos/size/off/advance) computed from the row bitmaps; the returned `atlas` has
 // the raw RGBA8 pixel data the caller uploads as a texture.
 @require_results
-load_font_from_json_bytes :: proc(
-	bytes:    []byte,
-	include_chars: map[rune]struct {} = nil,
-	allocator := context.allocator,
+load_font_from_json_bytes :: proc (
+	bytes:   []byte,
+	include: string = {},
+	space_width := 4,
+	atlas_cols  := 10,
+	atlas_gap   := 1,
+	allocator   := context.allocator,
 ) -> (font: Font, atlas: Atlas, err: Error) {
 
-	SPACE_W       :: 4
-	ATLAS_CHARS_H :: 10
-	ATLAS_GAP     :: 1
+	charset := make(map[rune]struct {}, context.temp_allocator)
+	for c in include do charset[c] = {}
 
 	State :: enum {
 		Brace_Open,  // {
@@ -34,7 +36,7 @@ load_font_from_json_bytes :: proc(
 		Array,       // [...
 		Int_1,       // 9
 		Int_2,       // 99
-		After_Int,   // 9, | 9]
+		Int_End,     // 9, | 9]
 		Comma,       // ],
 	}
 	state_char := #partial [State]rune{
@@ -45,6 +47,7 @@ load_font_from_json_bytes :: proc(
 		.Array       = '[',
 	}
 
+	// parser state
 	state: State
 	buf := make([dynamic]byte, context.temp_allocator)
 	char: rune
@@ -88,16 +91,16 @@ load_font_from_json_bytes :: proc(
 				continue
 			}
 			else if unicode.is_white_space(c) do break
-			state = .After_Int
+			state = .Int_End
 			fallthrough
-		case .After_Int:
+		case .Int_End:
 			if unicode.is_white_space(c) do continue
 			switch c {
 			case ',':
 				state = .Int_1
 				continue
 			case ']':
-				if include_chars == nil || char in include_chars {
+				if charset == nil || char in charset {
 					s := [2]int{8, 8}
 					e := [2]int{0, 0}
 					for row, ri in buf[buf_off:] {
@@ -135,42 +138,42 @@ load_font_from_json_bytes :: proc(
 		state = max(State((int(state) + 1) % len(State)), State.Quote_Open)
 	}
 
-	cols := min(len(chars), ATLAS_CHARS_H)
+	cols := min(len(chars), atlas_cols)
 	rows := len(chars) / cols
 	if rows * cols < len(chars) {
 		rows += 1
 	}
 
-	gap := ATLAS_GAP
-	atlas.size   = [2]int{cols, rows} * (size_max + gap) + gap
+	atlas.size   = [2]int{cols, rows} * (size_max + atlas_gap) + atlas_gap
 	atlas.pixels = make([]RGBA, atlas.size.x * atlas.size.y, allocator)
 
 	glyphs := make([]Glyph, len(chars), allocator)
 
 	for c, ci in chars {
-		x := (ci % cols) * (size_max.x + gap) + gap
-		y := (ci / cols) * (size_max.y + gap) + gap
-		size := c.e-c.s
-		off  := c.s
-		for row, ri in c.buf[off.y:c.e.y] {
-			for bi in off.x ..< c.e.x {
-				atlas.pixels[(y + ri) * atlas.size.x + x + bi - off.x] = (row & (1 << u8(bi))) * 255
+		x := (ci % cols) * (size_max.x + atlas_gap) + atlas_gap
+		y := (ci / cols) * (size_max.y + atlas_gap) + atlas_gap
+		pos  := c.s
+		end  := c.e
+		size := end-pos
+		for row, yi in c.buf[pos.y:end.y] {
+			for xi in pos.x ..< end.x {
+				px := x + xi - pos.x
+				py := y + yi
+				atlas.pixels[py * atlas.size.x + px] = (row & (1 << u8(xi))) * 255
 			}
 		}
 		glyphs[ci] = {
 			char    = c.char,
 			pos     = {i16(x), i16(y)},
 			size    = ([2]i16)(size),
-			off     = ([2]i16)(off),
-			advance = i16(size.x) if size.x > 0 else SPACE_W,
+			off     = ([2]i16)(pos),
+			advance = i16(size.x if size.x > 0 else space_width),
 		}
 	}
 
-	font.face        = ""
 	font.line_height = line_height
 	font.base        = size_max.y
-	font.padding     = {}
-	font.spacing     = {1, 1}
+	font.scale       = 1
 
 	font_set_glyphs(&font, glyphs, allocator)
 
