@@ -14,8 +14,8 @@ Atlas :: struct {
 // (pos/size/off/advance) computed from the row bitmaps; the returned `atlas` has
 // the raw RGBA8 pixel data the caller uploads as a texture.
 @require_results
-load_font_from_json_bytes :: proc (
-	bytes:   []byte,
+load_json_bitstream_string :: proc (
+	src:     string,
 	include: string = {},
 	space_width := 4,
 	atlas_cols  := 10,
@@ -58,7 +58,7 @@ load_font_from_json_bytes :: proc (
 	chars := make([dynamic]Char, context.temp_allocator)
 	has_space: bool
 
-	parse: for c in string(bytes) {
+	parse: for c in src {
 		switch state {
 		case .Brace_Open,
 		     .Quote_Open,
@@ -197,4 +197,25 @@ load_font_from_json_bytes :: proc (
 	font_set_glyphs(&font, glyphs, allocator)
 
 	return
+}
+
+
+// Load a font from a JSON byte stream. The returned `font` has its glyph metadata
+// (pos/size/off/advance) computed from the row bitmaps; the returned `atlas` has
+// the raw RGBA8 pixel data the caller uploads as a texture.
+@require_results
+load_json_bitstream_bytes :: proc (
+	bytes:   []byte,
+	include: string = {},
+	space_width := 4,
+	atlas_cols  := 10,
+	atlas_gap   := 1,
+	allocator   := context.allocator,
+) -> (font: Font, atlas: Atlas, err: Error) {
+	return load_json_bitstream_string(string(bytes), include, space_width, atlas_cols, atlas_gap, allocator)
+}
+
+load_json_bitstream :: proc {
+	load_json_bitstream_string,
+	load_json_bitstream_bytes,
 }
