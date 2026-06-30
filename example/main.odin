@@ -14,11 +14,12 @@ main :: proc () {
 
 	k2.set_camera(k2.Camera{zoom = f32(PIXEL_SCALE)})
 
-	font_thick    := load_bmfont(k2_state, "../fonts/thick_8x8.xml",     "../fonts/thick_8x8.png")
-	font_minogram := load_bmfont(k2_state, "../fonts/minogram_6x10.xml", "../fonts/minogram_6x10.png")
-	font_square   := load_bmfont(k2_state, "../fonts/square_6x6.xml",    "../fonts/square_6x6.png")
-	font_round    := load_bmfont(k2_state, "../fonts/round_6x6.xml",     "../fonts/round_6x6.png")
-	font_peaberry := load_bmfont(k2_state, "../fonts/WhitePeaberry.xml", "../fonts/WhitePeaberry.png")
+	font_thick    := load_bmfont(k2_state, "../fonts/thick_8x8.xml",        "../fonts/thick_8x8.png")
+	font_minogram := load_bmfont(k2_state, "../fonts/minogram_6x10.xml",    "../fonts/minogram_6x10.png")
+	font_square   := load_bmfont(k2_state, "../fonts/square_6x6.xml",       "../fonts/square_6x6.png")
+	font_round    := load_bmfont(k2_state, "../fonts/round_6x6.xml",        "../fonts/round_6x6.png")
+	font_peaberry := load_bmfont(k2_state, "../fonts/WhitePeaberry.xml",    "../fonts/WhitePeaberry.png")
+	font_monogram := load_bmfont_json(k2_state, "../fonts/monogram-bitmap.json")
 
 	for k2.update() {
 		defer k2.reset_frame_allocator()
@@ -55,6 +56,9 @@ main :: proc () {
 			"which uses k2.measure_text to wrap each line at the available width.",
 			9, max_width, {200, 230, 255, 255}, &cursor,
 		)
+		cursor.pos.y += 2
+
+		draw_line(font_monogram, "Monogram Bitmap", 12, {255, 220, 160, 255}, &cursor)
 		cursor.pos.y += 2
 
 		k2.present()

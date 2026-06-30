@@ -12,12 +12,27 @@ import "core:encoding/json"
 
 SNAPSHOTS_DIR :: "tests/snapshots"
 
-FONT_FIXTURES :: []struct{name, path: string}{
-	{name = "minogram_6x10", path = "fonts/minogram_6x10.xml"},
-	{name = "square_6x6",    path = "fonts/square_6x6.xml"},
-	{name = "round_6x6",     path = "fonts/round_6x6.xml"},
-	{name = "thick_8x8",     path = "fonts/thick_8x8.xml"},
-	{name = "WhitePeaberry", path = "fonts/WhitePeaberry.xml"},
+Font_Fixture :: struct {
+	name:      string,
+	path:      string,
+	encoding:  Encoding,
+}
+
+FONT_FIXTURES :: []Font_Fixture{
+	{name = "minogram_6x10", path = "fonts/minogram_6x10.xml",  encoding = .XML},
+	{name = "square_6x6",    path = "fonts/square_6x6.xml",     encoding = .XML},
+	{name = "round_6x6",     path = "fonts/round_6x6.xml",      encoding = .XML},
+	{name = "thick_8x8",     path = "fonts/thick_8x8.xml",      encoding = .XML},
+	{name = "WhitePeaberry", path = "fonts/WhitePeaberry.xml",  encoding = .XML},
+}
+
+// WhitePeaberry is shipped in three equivalent wire formats (XML, TXT, FNT). The
+// snapshot is taken from the XML version; the variant test below parses the other
+// two and asserts they produce the same `Font`.
+WHITEPEABERRY_VARIANTS :: []Font_Fixture{
+	{name = "xml", path = "fonts/WhitePeaberry.xml", encoding = .XML},
+	{name = "txt", path = "fonts/WhitePeaberry.txt", encoding = .TXT},
+	{name = "fnt", path = "fonts/WhitePeaberry.fnt", encoding = .FNT},
 }
 
 // True when `BMFONT_UPDATE_SNAPSHOTS=1` is in the environment — the snapshot files
@@ -38,29 +53,29 @@ marshal_options :: json.Marshal_Options {
 	use_enum_names   = true,
 }
 
-// Run the snapshot test for a single fixture. When `-update` is set, write the freshly
-// marshalled JSON to the snapshot path. Otherwise compare against the on-disk snapshot
-// and report a clear message if it is missing or differs.
-run_snapshot :: proc(t: ^testing.T, name, xml_path: string) {
-	xml_bytes, read_err := os.read_entire_file(xml_path, context.temp_allocator)
+// Load a fixture and write/compare its snapshot.
+run_snapshot :: proc(t: ^testing.T, fix: Font_Fixture) {
+	bytes, read_err := os.read_entire_file(fix.path, context.temp_allocator)
 	if read_err != nil {
-		testing.expectf(t, false, "could not read fixture %s: %v", xml_path, read_err)
+		testing.expectf(t, false, "could not read fixture %s: %v", fix.path, read_err)
 		return
 	}
 
-	font, ferr := load_font_from_bytes(xml_bytes, context.temp_allocator)
+	// Parse into the temp allocator so the per-fixture strings/glyphs/ranges are
+	// freed automatically at the end of the test frame — no destroy_font needed.
+	font, ferr := load_font_from_bytes(bytes, fix.encoding, context.temp_allocator)
 	if ferr != nil {
-		testing.expectf(t, false, "load_font_from_bytes(%s): %v", xml_path, ferr)
+		testing.expectf(t, false, "load_font_from_bytes(%s, %v): %v", fix.path, fix.encoding, ferr)
 		return
 	}
 
 	snapshot, jerr := json.marshal(font, marshal_options, context.temp_allocator)
 	if jerr != nil {
-		testing.expectf(t, false, "json.marshal(%s): %v", xml_path, jerr)
+		testing.expectf(t, false, "json.marshal(%s): %v", fix.path, jerr)
 		return
 	}
 
-	snapshot_path, join_err := filepath.join({SNAPSHOTS_DIR, fmt.tprintf("%s.json", name)})
+	snapshot_path, join_err := filepath.join({SNAPSHOTS_DIR, fmt.tprintf("%s.json", fix.name)})
 	if join_err != nil {
 		testing.expectf(t, false, "filepath.join: %v", join_err)
 		return
@@ -132,8 +147,6 @@ simple_line_diff :: proc(old_text, new_text: string) -> string {
 	line_count: int
 	truncated := false
 
-	// Walk both line slices by index. Where they agree, drop the line; where they
-	// disagree, emit both with `- ` and `+ ` markers.
 	i: int
 	for i < len(old_lines) {
 		if line_count >= MAX_DIFF_LINES {
@@ -152,7 +165,6 @@ simple_line_diff :: proc(old_text, new_text: string) -> string {
 		i += 1
 	}
 
-	// Trailing lines only present in `new`.
 	for j in len(old_lines)..<len(new_lines) {
 		if line_count >= MAX_DIFF_LINES {
 			truncated = true
@@ -169,6 +181,14 @@ simple_line_diff :: proc(old_text, new_text: string) -> string {
 	return string(buf[:])
 }
 
+// Marshal a Font the same way the snapshot test does, so we can byte-compare variant
+// parses against the canonical XML snapshot.
+font_to_snapshot_bytes :: proc(font: ^Font, allocator := context.temp_allocator) -> []u8 {
+	data, err := json.marshal(font, marshal_options, allocator)
+	if err != nil { return nil }
+	return data
+}
+
 @test
 test_snapshots :: proc(t: ^testing.T) {
 	if err := os.make_directory_all(SNAPSHOTS_DIR); err != nil && err != .Exist {
@@ -178,6 +198,63 @@ test_snapshots :: proc(t: ^testing.T) {
 
 	for fix in FONT_FIXTURES {
 		fmt.printf("snapshot: %s\n", fix.name)
-		run_snapshot(t, fix.name, fix.path)
+		run_snapshot(t, fix)
 	}
+}
+
+@test
+test_whitepeaberry_encodings_match :: proc(t: ^testing.T) {
+	// Load all three encodings and verify they produce the same `Font` value.
+	// The XML version is the canonical one — its snapshot is the reference.
+	// All allocations live on the temp allocator and are freed at end of frame.
+	xml_bytes, read_err := os.read_entire_file("fonts/WhitePeaberry.xml", context.temp_allocator)
+	if read_err != nil {
+		testing.expectf(t, false, "could not read WhitePeaberry.xml")
+		return
+	}
+	xml_font, err := load_font_from_bytes(xml_bytes, .XML, context.temp_allocator)
+	if err != nil {
+		testing.expectf(t, false, "XML parse failed: %v", err)
+		return
+	}
+	xml_snapshot := font_to_snapshot_bytes(&xml_font)
+
+	for fix in WHITEPEABERRY_VARIANTS {
+		bytes, read_err_2 := os.read_entire_file(fix.path, context.temp_allocator)
+		if read_err_2 != nil {
+			testing.expectf(t, false, "could not read %s", fix.path)
+			return
+		}
+		font, err := load_font_from_bytes(bytes, fix.encoding, context.temp_allocator)
+		if err != nil {
+			testing.expectf(t, false, "load_font_from_bytes(%s, %v): %v", fix.path, fix.encoding, err)
+			return
+		}
+		// Don't append to `loaded` — we let the temp allocator clean up at end of
+		// frame, which is what the leak-free test expects.
+		fmt.printf("whitepeaberry variant %s: %d bytes\n", fix.encoding, len(font.glyphs))
+
+		// Each variant should produce the same snapshot as the XML one.
+		variant_snapshot := font_to_snapshot_bytes(&font)
+		if !bytes_equal(xml_snapshot, variant_snapshot) {
+			diff := simple_line_diff(string(xml_snapshot), string(variant_snapshot))
+			msg := fmt.tprintf(
+				"WhitePeaberry .%s differs from .xml — re-run with -update if the change is intentional\n\n%s",
+				encoding_name(fix.encoding),
+				diff,
+			)
+			log.error(msg)
+		}
+	}
+}
+
+// `fmt.tprintf("%v", Encoding)` would print the variant's integer value, which is
+// not a useful label. Provide a short tag for log messages instead.
+encoding_name :: proc(e: Encoding) -> string {
+	switch e {
+	case .XML: return "xml"
+	case .TXT: return "txt"
+	case .FNT: return "fnt"
+	}
+	return "?"
 }
