@@ -117,16 +117,15 @@ load_font_from_json_bytes :: proc (
 					pos := [2]int{8, 8}
 					end := [2]int{0, 0}
 					for row, ri in buf[buf_off:] {
+						if row == 0 do continue
+
 						for bi in 0..<8 {
-							if row & (1 << u8(bi)) != 0 {
-								pos.x = min(pos.x, bi)
-								end.x = max(end.x, bi+1)
-							}
+							if row & (1 << u8(bi)) == 0 do continue
+							pos.x = min(pos.x, bi)
+							end.x = max(end.x, bi+1)
 						}
-						if row > 0 {
-							pos.y = min(pos.y, ri)
-							end.y = max(end.y, ri+1)
-						}
+						pos.y = min(pos.y, ri)
+						end.y = max(end.y, ri+1)
 					}
 					end = linalg.max(pos, end)
 					size_max = linalg.max(end-pos, size_max)
@@ -172,21 +171,18 @@ load_font_from_json_bytes :: proc (
 	glyphs := make([]Glyph, len(chars), allocator)
 
 	for c, ci in chars {
-		x := (ci % cols) * (size_max.x + atlas_gap) + atlas_gap
-		y := (ci / cols) * (size_max.y + atlas_gap) + atlas_gap
+		p := [2]int{ci % cols, ci / cols}
+		p = p * (size_max + atlas_gap) + atlas_gap
 		for row, yi in c.buf[c.pos.y:c.end.y] {
 			for xi in c.pos.x ..< c.end.x {
-				px := x + xi - c.pos.x
-				py := y + yi
-				if (row & (1 << u8(xi))) != 0 {
-					atlas.pixels[py * atlas.size.x + px] = 255
-				}
+				if (row & (1 << u8(xi))) == 0 do continue
+				atlas.pixels[(p.y + yi) * atlas.size.x + p.x + xi - c.pos.x] = 255
 			}
 		}
 		size := c.end-c.pos
 		glyphs[ci] = {
 			char    = c.char,
-			pos     = {i16(x), i16(y)},
+			pos     = ([2]i16)(p),
 			size    = ([2]i16)(size),
 			off     = ([2]i16)(c.pos),
 			advance = i16(size.x if size.x > 0 else space_width),
