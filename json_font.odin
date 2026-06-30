@@ -30,7 +30,6 @@ load_font_from_json_bytes :: proc (
 		Brace_Open,  // {
 		Quote_Open,  // "...
 		Char,        // rune
-		Char_Escape, // \rune
 		Quote_Close, // ..."
 		Colon,       // :
 		Array,       // [...
@@ -51,11 +50,13 @@ load_font_from_json_bytes :: proc (
 	state: State
 	buf := make([dynamic]byte, context.temp_allocator)
 	char: rune
+	char_num: bool
 	buf_off: int
 	size_max: [2]int
 	line_height: int
-	Char :: struct {char: rune, buf: []byte, s, e: [2]int}
+	Char :: struct {char: rune, buf: []byte, pos, end: [2]int}
 	chars := make([dynamic]Char, context.temp_allocator)
+	has_space: bool
 
 	parse: for c in string(bytes) {
 		switch state {
@@ -66,20 +67,32 @@ load_font_from_json_bytes :: proc (
 		     .Array:
 			if unicode.is_white_space(c) do continue
 			if c != state_char[state] {
-				return {}, {}, .Illegal_Character
+				state = .Comma
+				continue
 			}
 		case .Char:
-			if c == '"' do return {}, {}, .Illegal_Character
-			char = c
-		case .Char_Escape:
-			if char == '\\' {
+			if char == 0 {
+				if c == '"' {
+					state = .Comma
+					char = 0
+				} else {
+					char = c
+					char_num = false
+				}
+			} else if char == '\\' && !char_num {
 				char = c
+				break
+			} else if c >= '0' && c <= '9' {
+				if !char_num do char -= '0'
+				char = char * 10 + c - '0'
+				char_num = true
 			} else if c == '"' {
 				state = .Colon
-				continue
 			} else {
-				return {}, {}, .Illegal_Character
+				state = .Comma
+				char = 0
 			}
+			continue
 		case .Int_1:
 			if unicode.is_white_space(c) do continue
 			append_nothing(&buf)
@@ -101,41 +114,50 @@ load_font_from_json_bytes :: proc (
 				continue
 			case ']':
 				if charset == nil || char in charset {
-					s := [2]int{8, 8}
-					e := [2]int{0, 0}
+					pos := [2]int{8, 8}
+					end := [2]int{0, 0}
 					for row, ri in buf[buf_off:] {
 						for bi in 0..<8 {
 							if row & (1 << u8(bi)) != 0 {
-								s.x = min(s.x, bi)
-								e.x = max(e.x, bi+1)
+								pos.x = min(pos.x, bi)
+								end.x = max(end.x, bi+1)
 							}
 						}
 						if row > 0 {
-							s.y = min(s.y, ri)
-							e.y = max(e.y, ri+1)
+							pos.y = min(pos.y, ri)
+							end.y = max(end.y, ri+1)
 						}
 					}
-					e = linalg.max(s, e)
-					size_max = linalg.max(e-s, size_max)
+					end = linalg.max(pos, end)
+					size_max = linalg.max(end-pos, size_max)
 					line_height = max(len(buf)-buf_off, line_height)
-					append(&chars, Char{char, buf[buf_off:], s, e})
+					append(&chars, Char{char, buf[buf_off:], pos, end})
 					buf_off = len(buf)
+					has_space ||= char == ' '
 				} else {
 					resize(&buf, buf_off)
 				}
+				char = 0
 			case:
-				return {}, {}, .Illegal_Character
+				state = .Comma
+				continue
 			}
 		case .Comma:
 			if unicode.is_white_space(c) do continue
 			switch c {
 			case ',': // next state - next char
 			case '}': break parse
-			case: return {}, {}, .Illegal_Character
+			case:
+				state = .Comma
+				continue
 			}
 		}
 
 		state = max(State((int(state) + 1) % len(State)), State.Quote_Open)
+	}
+
+	if !has_space {
+		append(&chars, Char{' ', {}, 0, 0})
 	}
 
 	cols := min(len(chars), atlas_cols)
@@ -152,23 +174,24 @@ load_font_from_json_bytes :: proc (
 	for c, ci in chars {
 		x := (ci % cols) * (size_max.x + atlas_gap) + atlas_gap
 		y := (ci / cols) * (size_max.y + atlas_gap) + atlas_gap
-		pos  := c.s
-		end  := c.e
-		size := end-pos
-		for row, yi in c.buf[pos.y:end.y] {
-			for xi in pos.x ..< end.x {
-				px := x + xi - pos.x
+		for row, yi in c.buf[c.pos.y:c.end.y] {
+			for xi in c.pos.x ..< c.end.x {
+				px := x + xi - c.pos.x
 				py := y + yi
-				atlas.pixels[py * atlas.size.x + px] = (row & (1 << u8(xi))) * 255
+				if (row & (1 << u8(xi))) != 0 {
+					atlas.pixels[py * atlas.size.x + px] = 255
+				}
 			}
 		}
+		size := c.end-c.pos
 		glyphs[ci] = {
 			char    = c.char,
 			pos     = {i16(x), i16(y)},
 			size    = ([2]i16)(size),
-			off     = ([2]i16)(pos),
+			off     = ([2]i16)(c.pos),
 			advance = i16(size.x if size.x > 0 else space_width),
 		}
+		if c.char == ' ' do has_space = true
 	}
 
 	font.line_height = line_height

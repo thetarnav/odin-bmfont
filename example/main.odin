@@ -19,7 +19,7 @@ main :: proc () {
 	font_square   := load_bmfont(k2_state, "../fonts/square_6x6.xml",       "../fonts/square_6x6.png")
 	font_round    := load_bmfont(k2_state, "../fonts/round_6x6.xml",        "../fonts/round_6x6.png")
 	font_peaberry := load_bmfont(k2_state, "../fonts/WhitePeaberry.xml",    "../fonts/WhitePeaberry.png")
-	font_monogram := load_bmfont_json(k2_state, "../fonts/monogram-bitmap.json")
+	font_monogram := load_bmfont_json(k2_state, "../fonts/monogram-bitfontmaker.json")
 
 	for k2.update() {
 		defer k2.reset_frame_allocator()
