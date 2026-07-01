@@ -2,7 +2,7 @@
 
 Bitmap font parser and render helpers for Odin.
 
-<img width="1182" height="832" alt="Odin BMFont example" src="https://github.com/user-attachments/assets/3b7ae70a-58cf-407b-86ff-ce2e04270d85" />
+![Odin BMFont example preview](https://github.com/user-attachments/assets/3b7ae70a-58cf-407b-86ff-ce2e04270d85)
 
 Currently supports parsing following BMFont formats:
 
@@ -16,8 +16,6 @@ Currently supports parsing following BMFont formats:
     entries in a JSON map. The parser packs them into a virtual atlas for you.
     Check `./fonts/monogram-bitfontmaker.json` for example.
 
-Render helpers include `draw_text` and `measure_text`.
-
 ## Usage
 
 ### Parsing
@@ -30,17 +28,17 @@ font, err := bmfont.load_bmfont_xml(#load("fonts/WhitePeaberry.xml"))
 defer bmfont.destroy_font(font) // Remember to free it after use
 
 // Text format is also supported
-font, err := bmfont.load_bmfont_txt(#load("fonts/WhitePeaberry.txt"),
-                                    allocator=context.temp_allocator)
+font, err := bmfont.load_bmfont_text(#load("fonts/WhitePeaberry.txt"),
+                                     allocator=context.temp_allocator)
 
 // JSON bytestream — returns the `Font` and `Atlas :: struct {pixels: [][4]u8, size: [2]int}`
 font, atlas, err := bmfont.load_json_bytestream(
     #load("fonts/monogram-bitfontmaker.json"),
-    include      = "", // string of codepoints to keep in atlas/font; empty keeps everything.
-    space_width  = 4,  // space glyph is made from empty bytes, so you need to set it's width explicitly
-    atlas_cols   = 10, // how many glyphs should be in the atlas horizontally
-    atlas_gap    = 1,  // gap in pixels between glyphs in atlas
-    allocator    = context.temp_allocator,
+    include     = "", // string of codepoints to keep in atlas/font; empty keeps everything
+    space_width = 4,  // space glyph is made from empty bytes, so you need to set it's width explicitly
+    atlas_cols  = 10, // how many glyphs should be in the atlas horizontally
+    atlas_gap   = 1,  // gap in pixels between glyphs in atlas
+    allocator   = context.temp_allocator,
 )
 defer delete(atlas.pixels) // atlas pixels are allocated with `allocator` param
 ```
@@ -50,7 +48,7 @@ consecutive codepoints) via the per-font `ranges` table.
 
 ### Drawing
 
-`draw_text` is backend-agnostic.
+`draw_text` is backend-agnostic.\
 Each glyph turn calls the callback with the source rect (in atlas pixels)\
 and the destination rect (in screen pixels)\
 so the caller can blit however it likes:
@@ -66,9 +64,9 @@ bmfont.draw_text("Hello", font,
 )
 ```
 
-Newlines (`\n`) reset the pen to `origin.x` and advance y by the line height.
-Tabs (`\t`) advance the pen by four spaces. Unknown codepoints fall through to
-the next glyph with a space-width advance.
+Newlines (`\n`) reset the pen to `origin.x` and advance y by the line height.\
+Tabs (`\t`) advance the pen by four spaces.\
+Unknown codepoints fall through to the next glyph with a space-width advance.
 
 `font.info.spacing.x` (horizontal) is added to each glyph's advance, and
 `font.info.spacing.y` (vertical) is added to the line height, so the BMFont
@@ -87,12 +85,16 @@ if size.x > max_width {
 }
 ```
 
-`space_advance(font)` returns the pixel advance of a single space (used
-as the fallback when a codepoint isn't in the font).
+`space_advance(font)` returns the pixel advance of a single space\
+(used as the fallback when a codepoint isn't in the font).
 
 ## Example
 
 In [`example/`](./example/) you'll see how to draw some text using bitmap fonts.
+
+```sh
+make # or `odin run example`
+```
 
 It uses [karl2d](https://github.com/karl-zylinski/karl2d) for windowing and rendering.\
 It requires to have it in the `shared:` odin collection. (`odin/shared/karl2d`)
