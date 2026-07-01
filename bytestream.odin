@@ -14,7 +14,7 @@ Atlas :: struct {
 // (pos/size/off/advance) computed from the row bitmaps; the returned `atlas` has
 // the raw RGBA8 pixel data the caller uploads as a texture.
 @require_results
-load_json_bitstream :: proc (
+load_json_bytestream :: proc (
 	src:     string,
 	include: string = {},
 	space_width := 4,
