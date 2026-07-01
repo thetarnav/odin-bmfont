@@ -70,10 +70,8 @@ draw_text :: proc(
 		}
 
 		s := Rect{Vec2(glyph.pos), Vec2(glyph.size)}
-		d := Rect{
-			pos  = origin + c + Vec2(glyph.off) * scale,
-			size = {s.size.x * scale * stretch, s.size.y * scale},
-		}
+		d := Rect{pos  = origin + c + Vec2(glyph.off) * scale,
+		          size = {s.size.x * scale * stretch, s.size.y * scale}}
 		cb(src=s, dst=d)
 
 		c.x += f32(glyph.advance) * scale + extra_x
