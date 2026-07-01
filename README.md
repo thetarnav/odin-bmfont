@@ -2,6 +2,8 @@
 
 Bitmap font parser and render helpers for Odin.
 
+<img width="1182" height="832" alt="Odin BMFont example" src="https://github.com/user-attachments/assets/3b7ae70a-58cf-407b-86ff-ce2e04270d85" />
+
 Currently supports parsing following BMFont formats:
 
 - **XML** — Standard BMFont XML *(`.xml`, `.fnt`)*, produced by virtually every exporter.
