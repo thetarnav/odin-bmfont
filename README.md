@@ -17,6 +17,83 @@ Render helpers include `draw_text` and `measure_text`.
 
 ## Usage
 
+### Parsing
+
+```odin
+import bmfont ".."
+
+// XML / TXT / FNT — return a `bmfont.Font`. XML/TXT/FNT need a paired atlas texture
+// uploaded separately; the JSON variant carries its own pixel data instead.
+font, err := bmfont.load_font_from_bytes(#load("fonts/WhitePeaberry.xml"), .XML, context.temp_allocator)
+
+// JSON — returns the `Font` plus a `JSON_Atlas { pixels: []u8, size: [2]int }`
+// holding the raw RGBA8 atlas bytes the caller uploads as a texture.
+font, atlas, err := bmfont.load_font_from_json_bytes(
+    #load("fonts/monogram-bitmap.json"),
+    context.temp_allocator,
+)
+```
+
+`bmfont.find_glyph(font, codepoint)` resolves a rune to a `Glyph` in O(runs of
+consecutive codepoints) via the per-font `ranges` table.
+
+### Drawing
+
+`render.draw_text` is backend-agnostic — it takes a `Draw_Callback` that the
+caller supplies. Each glyph turn calls the callback with the source rect (in
+atlas pixels) and the destination rect (in screen pixels) so the caller can
+blit however it likes:
+
+```odin
+import bmfont ".."
+
+draw_text(
+    "Hello",
+    font,
+    my_draw_callback,    // proc(src, dst: Rect)
+    scale   = 4,          // atlas-pixel-to-screen-pixel multiplier
+    origin  = {10, 10},   // top-left of the text in screen pixels
+    cursor  = &cursor,    // optional pen position; updated as text advances
+)
+```
+
+Newlines (`\n`) reset the pen to `origin.x` and advance y by the line height.
+Tabs (`\t`) advance the pen by four spaces. Unknown codepoints fall through to
+the next glyph with a space-width advance.
+
+`font.info.spacing[0]` (horizontal) is added to each glyph's advance, and
+`font.info.spacing[1]` (vertical) is added to the line height, so the BMFont
+`<info spacing="…">` attribute flows through to the layout automatically.
+
+### Measuring
+
+`render.measure_text(text, font, scale)` returns the `[width, height]` in screen
+pixels the text would occupy. Use it to size a container, compute a wrap width,
+or pre-compute a cursor offset without drawing:
+
+```odin
+size := render.measure_text("Hello, world!", font, scale = 4)
+if size.x > max_width {
+    // wrap, truncate, or fall back to a smaller font_size
+}
+```
+
+`render.space_advance(font)` returns the pixel advance of a single space (used
+as the fallback when a codepoint isn't in the font).
+
+### karl2d setup
+
+For an end-to-end example that ties parsing → atlas upload → k2 static font
+registration, see `example/static_fonts.odin`. It has two procs:
+
+- `load_bmfont(state, $XML_PATH, $PNG_PATH) -> k2.Font` — XML + PNG pair.
+- `load_bmfont_json(state, $JSON_PATH) -> k2.Font` — JSON byte stream.
+
+Both call into the library, then upload the atlas (PNG or in-memory RGBA),
+build the `k2.Font_Baked_Glyph` / `k2.Font_Baked_Glyph_Range` tables, and append
+a `k2.Font_Data` to `state.fonts`. After that, `k2.draw_text(text, pos, size,
+color, font)` works the same way as for any k2 font.
+
 ## Resources
 
 - [AngelCode's Bitmap Font Generator Documentation](https://www.angelcode.com/products/bmfont/doc/file_format.html)
@@ -46,3 +123,4 @@ Render helpers include `draw_text` and `measure_text`.
   - [`fonts/square_6x6.xml`](./fonts/square_6x6.xml)
   - [`fonts/thick_8x8.png`](./fonts/thick_8x8.png)
   - [`fonts/thick_8x8.xml`](./fonts/thick_8x8.xml)
+
