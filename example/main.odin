@@ -1,6 +1,6 @@
 package example
 
-import k2 "./karl2d"
+import k2 "shared:karl2d"
 
 Vec2 :: k2.Vec2
 

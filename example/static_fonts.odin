@@ -3,7 +3,7 @@
 package example
 
 import "core:fmt"
-import k2 "./karl2d"
+import k2 "shared:karl2d"
 import bmfont ".."
 
 // Load a BMFont as a k2 Static font. The atlas is the BMFont's PNG, baked

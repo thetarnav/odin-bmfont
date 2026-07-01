@@ -2,7 +2,7 @@
 
 package example
 
-import k2 "./karl2d"
+import k2 "shared:karl2d"
 
 Text_Cursor :: struct {
 	pos:       Vec2, // is the top-left of the next line to draw
