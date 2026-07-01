@@ -9,7 +9,7 @@ PIXEL_SCALE :: 4
 
 main :: proc () {
 
-	k2_state := k2.init(UI_W, UI_H, "Bitmap Font (static) Example",
+	k2_state := k2.init(UI_W, UI_H, "Bitmap Font Example",
 		options = {window_mode = .Windowed_Resizable})
 
 	k2.set_camera(k2.Camera{zoom = f32(PIXEL_SCALE)})
@@ -29,10 +29,10 @@ main :: proc () {
 
 		cursor := Text_Cursor{pos = {10, 8}}
 
-		draw_line(font_thick, "BITMAP FONTS!", 12, {255, 220, 160, 255}, &cursor)
+		draw_line(font_thick, "BITMAP FONTS!!!1", 12, {255, 220, 160, 255}, &cursor)
 		cursor.pos.y += 2
 
-		draw_line(font_minogram, "All four BMFonts, one example", 12, {200, 255, 220, 255}, &cursor)
+		draw_line(font_minogram, "XML, Text and JSON bytestream formats!", 12, {200, 255, 220, 255}, &cursor)
 		cursor.pos.y += 2
 
 		max_width := f32(k2.get_screen_width()) / PIXEL_SCALE - 20
@@ -58,7 +58,7 @@ main :: proc () {
 		)
 		cursor.pos.y += 2
 
-		draw_line(font_monogram, "Monogram Bitmap", 12, {255, 220, 160, 255}, &cursor)
+		draw_line(font_monogram, "Hello from Monogram Bitmap Font!", 12, {255, 220, 160, 255}, &cursor)
 		cursor.pos.y += 2
 
 		k2.present()
