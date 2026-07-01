@@ -10,8 +10,9 @@ Currently supports parsing following BMFont formats:
 - **Text** — AngelCode's text format *(`.txt`, `.fnt`)* — one tag per line followed by `key=value` pairs.
     Check `./fonts/WhitePeaberry.txt` for example.
     Requires a separate atlas texture.
-- **JSON byte stream** — Encodes each character pixels directly in byte row bitmaps.
-    Check `./fonts/monogram-bitmap.json` for example.
+- **JSON byte stream** — Each character's pixels are encoded directly as bit-pattern
+    entries in a JSON map. The parser packs them into a virtual atlas for you.
+    Check `./fonts/monogram-bitfontmaker.json` for example.
 
 Render helpers include `draw_text` and `measure_text`.
 
@@ -22,15 +23,21 @@ Render helpers include `draw_text` and `measure_text`.
 ```odin
 import bmfont ".."
 
-// XML / TXT / FNT — return a `bmfont.Font`. XML/TXT/FNT need a paired atlas texture
-// uploaded separately; the JSON variant carries its own pixel data instead.
-font, err := bmfont.load_font_from_bytes(#load("fonts/WhitePeaberry.xml"), .XML, context.temp_allocator)
+// XML / Text — return a `bmfont.Font`. Both need a paired atlas texture uploaded
+// separately; the JSON variant carries its own pixel data instead.
+font, err := bmfont.load_bmfont(#load("fonts/WhitePeaberry.xml"), .XML, context.temp_allocator)
+font, err = bmfont.load_bmfont(#load("fonts/WhitePeaberry.txt"), .Text, context.temp_allocator)
 
-// JSON — returns the `Font` plus a `JSON_Atlas { pixels: []u8, size: [2]int }`
+// JSON bytestream — returns the `Font` plus an `Atlas { pixels: []RGBA, size: [2]int }`
 // holding the raw RGBA8 atlas bytes the caller uploads as a texture.
-font, atlas, err := bmfont.load_font_from_json_bytes(
-    #load("fonts/monogram-bitmap.json"),
-    context.temp_allocator,
+// `include` is a string of codepoints to keep; empty keeps everything.
+font, atlas, err := bmfont.load_json_bytestream(
+    #load("fonts/monogram-bitfontmaker.json"),
+    include      = "",
+    space_width  = 4,
+    atlas_cols   = 10,
+    atlas_gap    = 1,
+    allocator    = context.temp_allocator,
 )
 ```
 
@@ -86,8 +93,8 @@ as the fallback when a codepoint isn't in the font).
 For an end-to-end example that ties parsing → atlas upload → k2 static font
 registration, see `example/static_fonts.odin`. It has two procs:
 
-- `load_bmfont(state, $XML_PATH, $PNG_PATH) -> k2.Font` — XML + PNG pair.
-- `load_bmfont_json(state, $JSON_PATH) -> k2.Font` — JSON byte stream.
+- `load_bmfont(state, $XML_PATH, $PNG_PATH) -> k2.Font` — XML/Text + PNG pair.
+- `load_bmfont_json(state, $JSON_PATH) -> k2.Font` — JSON bytestream.
 
 Both call into the library, then upload the atlas (PNG or in-memory RGBA),
 build the `k2.Font_Baked_Glyph` / `k2.Font_Baked_Glyph_Range` tables, and append

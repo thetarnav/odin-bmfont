@@ -69,7 +69,7 @@ load_bmfont_json :: proc(
 	$JSON_PATH: string,
 ) -> k2.Font {
 
-	bm, atlas, jerr := bmfont.load_json_bitstream(#load(JSON_PATH), allocator=context.temp_allocator)
+	bm, atlas, jerr := bmfont.load_json_bytestream(#load(JSON_PATH), allocator=context.temp_allocator)
 	if jerr != nil {
 		fmt.printfln("Failed to load JSON font %s: %v", JSON_PATH, jerr)
 		return k2.FONT_NONE
