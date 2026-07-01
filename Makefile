@@ -6,7 +6,7 @@ run:
 	odin run example
 
 check:
-	odin check . -vet
+	odin check . -vet -no-entry-point -warnings-as-errors
 
 test:
 	odin test . -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true
