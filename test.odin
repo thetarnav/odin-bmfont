@@ -15,7 +15,7 @@ SNAPSHOTS_DIR :: "tests/snapshots"
 Font_Fixture :: struct {
 	name:      string,
 	path:      string,
-	encoding:  Encoding,
+	encoding:  Format,
 }
 
 FONT_FIXTURES :: []Font_Fixture{
@@ -26,13 +26,12 @@ FONT_FIXTURES :: []Font_Fixture{
 	{name = "WhitePeaberry", path = "fonts/WhitePeaberry.xml",  encoding = .XML},
 }
 
-// WhitePeaberry is shipped in three equivalent wire formats (XML, TXT, FNT). The
+// WhitePeaberry is shipped in three equivalent wire formats (XML, TXT). The
 // snapshot is taken from the XML version; the variant test below parses the other
 // two and asserts they produce the same `Font`.
 WHITEPEABERRY_VARIANTS :: []Font_Fixture{
 	{name = "xml", path = "fonts/WhitePeaberry.xml", encoding = .XML},
-	{name = "txt", path = "fonts/WhitePeaberry.txt", encoding = .TXT},
-	{name = "fnt", path = "fonts/WhitePeaberry.fnt", encoding = .FNT},
+	{name = "txt", path = "fonts/WhitePeaberry.txt", encoding = .Text},
 }
 
 // True when `BMFONT_UPDATE_SNAPSHOTS=1` is in the environment — the snapshot files
@@ -55,6 +54,7 @@ marshal_options :: json.Marshal_Options {
 
 // Load a fixture and write/compare its snapshot.
 run_snapshot :: proc(t: ^testing.T, fix: Font_Fixture) {
+
 	bytes, read_err := os.read_entire_file(fix.path, context.temp_allocator)
 	if read_err != nil {
 		testing.expectf(t, false, "could not read fixture %s: %v", fix.path, read_err)
@@ -63,9 +63,9 @@ run_snapshot :: proc(t: ^testing.T, fix: Font_Fixture) {
 
 	// Parse into the temp allocator so the per-fixture strings/glyphs/ranges are
 	// freed automatically at the end of the test frame — no destroy_font needed.
-	font, ferr := load_font_from_bytes(bytes, fix.encoding, context.temp_allocator)
+	font, ferr := load_bmfont(string(bytes), fix.encoding, context.temp_allocator)
 	if ferr != nil {
-		testing.expectf(t, false, "load_font_from_bytes(%s, %v): %v", fix.path, fix.encoding, ferr)
+		testing.expectf(t, false, "load_bmfont(%s, %v): %v", fix.path, fix.encoding, ferr)
 		return
 	}
 
@@ -212,7 +212,7 @@ test_whitepeaberry_encodings_match :: proc(t: ^testing.T) {
 		testing.expectf(t, false, "could not read WhitePeaberry.xml")
 		return
 	}
-	xml_font, err := load_font_from_bytes(xml_bytes, .XML, context.temp_allocator)
+	xml_font, err := load_bmfont_xml(string(xml_bytes), context.temp_allocator)
 	if err != nil {
 		testing.expectf(t, false, "XML parse failed: %v", err)
 		return
@@ -225,9 +225,9 @@ test_whitepeaberry_encodings_match :: proc(t: ^testing.T) {
 			testing.expectf(t, false, "could not read %s", fix.path)
 			return
 		}
-		font, err := load_font_from_bytes(bytes, fix.encoding, context.temp_allocator)
+		font, err := load_bmfont(string(bytes), fix.encoding, context.temp_allocator)
 		if err != nil {
-			testing.expectf(t, false, "load_font_from_bytes(%s, %v): %v", fix.path, fix.encoding, err)
+			testing.expectf(t, false, "load_bmfont(%s, %v): %v", fix.path, fix.encoding, err)
 			return
 		}
 		// Don't append to `loaded` — we let the temp allocator clean up at end of
@@ -250,11 +250,10 @@ test_whitepeaberry_encodings_match :: proc(t: ^testing.T) {
 
 // `fmt.tprintf("%v", Encoding)` would print the variant's integer value, which is
 // not a useful label. Provide a short tag for log messages instead.
-encoding_name :: proc(e: Encoding) -> string {
+encoding_name :: proc(e: Format) -> string {
 	switch e {
 	case .XML: return "xml"
-	case .TXT: return "txt"
-	case .FNT: return "fnt"
+	case .Text: return "txt"
 	}
 	return "?"
 }

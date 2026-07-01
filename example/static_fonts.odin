@@ -15,7 +15,7 @@ load_bmfont :: proc(
 	$PNG_PATH: string,
 ) -> k2.Font {
 
-	bm, ferr := bmfont.load_font_from_bytes(#load(XML_PATH), .XML, context.temp_allocator)
+	bm, ferr := bmfont.load_bmfont_xml(#load(XML_PATH), context.temp_allocator)
 	if ferr != nil {
 		fmt.printfln("Failed to load font XML %s: %v", XML_PATH, ferr)
 		return k2.FONT_NONE
