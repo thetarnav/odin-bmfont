@@ -56,7 +56,7 @@ so the caller can blit however it likes:
 ```odin
 import "bmfont"
 
-draw_text("Hello", font,
+bmfont.draw_text("Hello", font,
     my_draw_callback,  // proc (src, dst: Rect)
     scale  = 4,        // atlas-pixel-to-screen-pixel multiplier
     origin = {10, 10}, // top-left of the text in screen pixels
@@ -74,23 +74,23 @@ the next glyph with a space-width advance.
 
 ### Measuring
 
-`render.measure_text(text, font, scale)` returns the `[width, height]` in screen
+`measure_text(text, font, scale)` returns the `[width, height]` in screen
 pixels the text would occupy. Use it to size a container, compute a wrap width,
 or pre-compute a cursor offset without drawing:
 
 ```odin
-size := render.measure_text("Hello, world!", font, scale=4)
+size := bmfont.measure_text("Hello, world!", font, scale=4)
 if size.x > max_width {
     // wrap, truncate, or fall back to a smaller font_size
 }
 ```
 
-`render.space_advance(font)` returns the pixel advance of a single space (used
+`space_advance(font)` returns the pixel advance of a single space (used
 as the fallback when a codepoint isn't in the font).
 
 ### karl2d setup
 
-See [`example/static_fonts.odin`](./example/static_fonts.odin) for how can one setup [karl2d](https://github.com/karl-zylinski/karl2d) to use you bmfonts.
+See [`example/static_fonts.odin`](./example/static_fonts.odin) for how can one setup [karl2d](https://github.com/karl-zylinski/karl2d) to use your bmfonts.
 
 ## Resources
 
