@@ -21,46 +21,46 @@ Render helpers include `draw_text` and `measure_text`.
 ### Parsing
 
 ```odin
-import bmfont ".."
+import "bmfont"
 
-// XML / Text — return a `bmfont.Font`. Both need a paired atlas texture uploaded
-// separately; the JSON variant carries its own pixel data instead.
-font, err := bmfont.load_bmfont(#load("fonts/WhitePeaberry.xml"), .XML, context.temp_allocator)
-font, err = bmfont.load_bmfont(#load("fonts/WhitePeaberry.txt"), .Text, context.temp_allocator)
+// Load and parse your XML font to bmfont.Font
+font, err := bmfont.load_bmfont_xml(#load("fonts/WhitePeaberry.xml"))
+defer bmfont.destroy_font(font) // Remember to free it after use
 
-// JSON bytestream — returns the `Font` plus an `Atlas { pixels: []RGBA, size: [2]int }`
-// holding the raw RGBA8 atlas bytes the caller uploads as a texture.
-// `include` is a string of codepoints to keep; empty keeps everything.
+// Text format is also supported
+font, err := bmfont.load_bmfont_txt(#load("fonts/WhitePeaberry.txt"),
+                                    allocator=context.temp_allocator)
+
+// JSON bytestream — returns the `Font` and `Atlas :: struct {pixels: [][4]u8, size: [2]int}`
 font, atlas, err := bmfont.load_json_bytestream(
     #load("fonts/monogram-bitfontmaker.json"),
-    include      = "",
-    space_width  = 4,
-    atlas_cols   = 10,
-    atlas_gap    = 1,
+    include      = "", // string of codepoints to keep in atlas/font; empty keeps everything.
+    space_width  = 4,  // space glyph is made from empty bytes, so you need to set it's width explicitly
+    atlas_cols   = 10, // how many glyphs should be in the atlas horizontally
+    atlas_gap    = 1,  // gap in pixels between glyphs in atlas
     allocator    = context.temp_allocator,
 )
+defer delete(atlas.pixels) // atlas pixels are allocated with `allocator` param
 ```
 
-`bmfont.find_glyph(font, codepoint)` resolves a rune to a `Glyph` in O(runs of
+`find_glyph(font, codepoint)` resolves a rune to a `Glyph` in O(runs of
 consecutive codepoints) via the per-font `ranges` table.
 
 ### Drawing
 
-`render.draw_text` is backend-agnostic — it takes a `Draw_Callback` that the
-caller supplies. Each glyph turn calls the callback with the source rect (in
-atlas pixels) and the destination rect (in screen pixels) so the caller can
-blit however it likes:
+`draw_text` is backend-agnostic.
+Each glyph turn calls the callback with the source rect (in atlas pixels)\
+and the destination rect (in screen pixels)\
+so the caller can blit however it likes:
 
 ```odin
-import bmfont ".."
+import "bmfont"
 
-draw_text(
-    "Hello",
-    font,
-    my_draw_callback,    // proc(src, dst: Rect)
-    scale   = 4,          // atlas-pixel-to-screen-pixel multiplier
-    origin  = {10, 10},   // top-left of the text in screen pixels
-    cursor  = &cursor,    // optional pen position; updated as text advances
+draw_text("Hello", font,
+    my_draw_callback,  // proc (src, dst: Rect)
+    scale  = 4,        // atlas-pixel-to-screen-pixel multiplier
+    origin = {10, 10}, // top-left of the text in screen pixels
+    cursor = &cursor,  // optional pen position; updated as text advances
 )
 ```
 
@@ -68,8 +68,8 @@ Newlines (`\n`) reset the pen to `origin.x` and advance y by the line height.
 Tabs (`\t`) advance the pen by four spaces. Unknown codepoints fall through to
 the next glyph with a space-width advance.
 
-`font.info.spacing[0]` (horizontal) is added to each glyph's advance, and
-`font.info.spacing[1]` (vertical) is added to the line height, so the BMFont
+`font.info.spacing.x` (horizontal) is added to each glyph's advance, and
+`font.info.spacing.y` (vertical) is added to the line height, so the BMFont
 `<info spacing="…">` attribute flows through to the layout automatically.
 
 ### Measuring
@@ -79,7 +79,7 @@ pixels the text would occupy. Use it to size a container, compute a wrap width,
 or pre-compute a cursor offset without drawing:
 
 ```odin
-size := render.measure_text("Hello, world!", font, scale = 4)
+size := render.measure_text("Hello, world!", font, scale=4)
 if size.x > max_width {
     // wrap, truncate, or fall back to a smaller font_size
 }
@@ -90,16 +90,7 @@ as the fallback when a codepoint isn't in the font).
 
 ### karl2d setup
 
-For an end-to-end example that ties parsing → atlas upload → k2 static font
-registration, see `example/static_fonts.odin`. It has two procs:
-
-- `load_bmfont(state, $XML_PATH, $PNG_PATH) -> k2.Font` — XML/Text + PNG pair.
-- `load_bmfont_json(state, $JSON_PATH) -> k2.Font` — JSON bytestream.
-
-Both call into the library, then upload the atlas (PNG or in-memory RGBA),
-build the `k2.Font_Baked_Glyph` / `k2.Font_Baked_Glyph_Range` tables, and append
-a `k2.Font_Data` to `state.fonts`. After that, `k2.draw_text(text, pos, size,
-color, font)` works the same way as for any k2 font.
+See [`example/static_fonts.odin`](./example/static_fonts.odin) for how can one setup [karl2d](https://github.com/karl-zylinski/karl2d) to use you bmfonts.
 
 ## Resources
 
