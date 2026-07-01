@@ -88,9 +88,15 @@ if size.x > max_width {
 `space_advance(font)` returns the pixel advance of a single space (used
 as the fallback when a codepoint isn't in the font).
 
-### karl2d setup
+## Example
 
-See [`example/static_fonts.odin`](./example/static_fonts.odin) for how can one setup [karl2d](https://github.com/karl-zylinski/karl2d) to use your bmfonts.
+In [`example/`](./example/) you'll see how to draw some text using bitmap fonts.
+
+It uses [karl2d](https://github.com/karl-zylinski/karl2d) for windowing and rendering.\
+It requires to have it in the `shared:` odin collection. (`odin/shared/karl2d`)
+
+See [`example/static_fonts.odin`](./example/static_fonts.odin) for how can bmfonts be loaded directly to `karl2d` state,\
+so you can use `k2.draw_text()` and `k2.measure_text()` with bmfonts.
 
 ## Resources
 
