@@ -48,13 +48,13 @@ load_json_bytestream :: proc (
 
 	// parser state
 	state: State
-	buf := make([dynamic]int, context.temp_allocator)
+	buf := make([dynamic]u16, context.temp_allocator)
 	char: rune
 	char_num: bool
 	buf_off: int
 	size_max: [2]int
 	line_height: int
-	Char :: struct {char: rune, buf: []int, pos, end: [2]int}
+	Char :: struct {char: rune, buf: []u16, pos, end: [2]int}
 	chars := make([dynamic]Char, context.temp_allocator)
 	has_space: bool
 
@@ -100,7 +100,7 @@ load_json_bytestream :: proc (
 			fallthrough
 		case .Int_2:
 			#no_bounds_check if c >= '0' && c <= '9' {
-				buf[len(buf)-1] = (buf[len(buf)-1] * 10) + int(c - '0')
+				buf[len(buf)-1] = (buf[len(buf)-1] * 10) + u16(c - '0')
 				continue
 			}
 			else if unicode.is_white_space(c) do break
