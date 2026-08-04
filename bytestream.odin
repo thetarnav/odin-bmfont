@@ -130,6 +130,7 @@ load_json_bytestream :: proc (
 					end = linalg.max(pos, end)
 					size_max = linalg.max(end-pos, size_max)
 					line_height = max(len(buf)-buf_off, line_height)
+					if pos == end do pos, end = 0, 0
 					append(&chars, Char{char, buf[buf_off:], pos, end})
 					buf_off = len(buf)
 					has_space ||= char == ' '
